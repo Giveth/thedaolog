@@ -14,29 +14,44 @@ app is platform-agnostic Node 20 + pnpm.
 
 ## 0. What you'll receive in the handover package
 
-Zep will get you:
+Zep will get you exactly two things:
 
-1. **GitHub access** — push rights to a Giveth-owned repo. If the repo
-   doesn't exist yet, mirror `thedaolog-vite` to `Giveth/thedaolog`
-   (or similar). Don't include `node_modules`, `.secrets`, or `data/`.
-2. **Two secrets** (paste into the host's secret manager, never commit):
-   - `PINATA_JWT` — Pinata key, current value in the testbed's
-     `.secrets/env.json`. See HANDOFF.md §3 if you want to re-issue a
-     fresh JWT under a Giveth-owned Pinata account, which is the
-     cleaner option.
-   - `DEPLOYER_PRIVATE_KEY` — the deployer/minter wallet's private
-     key (current value at
-     `0x16D89551D8635341bdB6a3dAEdc57e0ca43C42d4`, key file
-     `.secrets/thedaolog_deployer.json`). You will replace this wallet
-     during cleanup, but it stays in use until you do.
-3. **Decision: domain** — confirm with Zep/Griff which subdomain to
+1. **GitHub access** — read-only on `xerxes-openclaw/thedaolog`. Fork
+   it to `Giveth/thedaolog` (or similar) so future PRs come through
+   the Giveth org. Don't include `node_modules`, `.secrets`, or
+   `data/` in any commits.
+2. **Domain decision** — confirm with Zep/Griff which subdomain to
    point at the deploy. Plausible options: `thedaolog.giveth.io`,
    `log.thedao.fund`, `vote.thedao.fund`. DNS changes go through
    whoever holds the parent domain.
-4. **Decision: who replaces the deployer wallet** — generate a Giveth
-   ops wallet (Safe multisig recommended, or a single-sig burner if
-   you want lower friction for the periodic `commit` tx). You'll
-   transfer the on-chain roles to this wallet at the end.
+
+**That's it.** You will NOT receive any private keys, Pinata JWTs, or
+other secrets from us. The xerxes/testbed credentials stay on the
+windows machine and get retired the moment your deploy is live with
+its own Giveth-owned credentials. This is intentional — the only people
+who hold deploy secrets should be you (operations) and Griff (admin via
+griff.eth). No legacy dev keys carry over.
+
+### 0a. You generate your own credentials before first deploy
+
+Two things to set up under Giveth ownership, before you push the first
+deploy:
+
+- **A fresh Pinata account.** Sign up at app.pinata.cloud using a
+  `giveth.io` email. New API key, Admin scope, name it `thedaolog`.
+  Copy the JWT (starts with `eyJ...`). This becomes your `PINATA_JWT`
+  env var. Don't use the xerxes-issued JWT — generate fresh.
+- **A fresh deployer/minter wallet.** Generate a new EVM keypair —
+  either a single-sig burner (lower friction for the periodic `commit`
+  tx) or a Safe multisig on Arbitrum One (more secure, requires a
+  small refactor of the commit endpoint — see HANDOFF.md §10). Whatever
+  you choose, the private key becomes your `DEPLOYER_PRIVATE_KEY` env
+  var. Note the address — you'll need it for §4 below.
+
+Once those exist, §4 walks through moving the on-chain roles from the
+old xerxes/zep wallets onto your new wallet + `griff.eth`. After §4
+runs successfully, the xerxes deployer key file gets deleted and the
+testbed has zero authority over anything that matters.
 
 ---
 
@@ -236,47 +251,78 @@ DNS swing is the only externally-visible step in the migration. Order matters.
 
 ---
 
-## 4. On-chain ownership cleanup
+## 4. On-chain ownership transfer (do this with your first deploy)
 
-The deployer/minter wallet at `0x16D89551D8635341bdB6a3dAEdc57e0ca43C42d4`
-currently holds `MINTER_ROLE` on the badge and is `admin` on the
-TallyCommit contract. Until you replace it, anyone with that
-`.secrets/thedaolog_deployer.json` file can mint badges and post Merkle
-roots. That includes whoever has access to the Windows testbed.
+This is NOT optional post-deploy cleanup — it's part of getting the
+production app to a clean state. Until §4 runs successfully, anyone
+with access to the xerxes testbed (`.secrets/thedaolog_deployer.json`)
+can still mint badges and post Merkle roots. Do it the same day your
+Railway deploy goes live.
 
-Replace it once your Railway deploy is stable.
+End state we're aiming for:
+- **`griff.eth`** (resolves to `0x839395e20bbB182fa440d08F850E6c7A8f6F0780`)
+  holds the badge contract's `DEFAULT_ADMIN_ROLE` and the TallyCommit
+  contract's `admin`. Griff is the sole governance authority — he can
+  grant or revoke any operational role if needed, but never signs
+  routine ops txs.
+- **Your Giveth ops wallet** (the one you generated in §0a) holds the
+  badge contract's `MINTER_ROLE`. Only this wallet mints badges and
+  signs the periodic `commit(proposalId, root, ballotCount)` tx.
+- **The xerxes deployer wallet** (`0x16D89551D8635341bdB6a3dAEdc57e0ca43C42d4`)
+  and **Zep's admin wallet** (`0x72315dddeb862cD484b9F37d37952eC9080557cd`)
+  hold zero roles. Their key material gets deleted from the testbed.
 
-1. **Generate the Giveth ops wallet**. Either a fresh single-sig or a
-   Safe multisig on Arbitrum One. Note the address.
+Steps:
 
-2. **Update the Railway env var**: set `DEPLOYER_PRIVATE_KEY` to the
-   new wallet's key (or if multisig, leave the env unset for now; the
-   API's commit endpoint will need a separate flow that proposes the
-   tx to the Safe instead of sending it directly — minor follow-up
-   work, see HANDOFF.md §10).
+1. **Confirm your Giveth ops wallet exists** (from §0a). You should
+   have generated it before first deploy and set `DEPLOYER_PRIVATE_KEY`
+   in Railway. The wallet's address is what you'll grant roles to.
 
-3. **Badge contract — replace minter** (Arbiscan, Write tab on
-   `0x32d664ca9ea4bad60b2b8ed61dec30692df43ac9`):
-   - Connect with Zep's admin wallet
-     (`0x72315dddeb862cD484b9F37d37952eC9080557cd`).
-   - `grantRole(MINTER_ROLE, <Giveth ops wallet>)`.
+2. **Badge contract — transfer admin and minter**
+   (Arbiscan, Write tab on `0x32d664ca9ea4bad60b2b8ed61dec30692df43ac9`):
+
+   First, Zep does these from his admin wallet
+   (`0x72315dddeb862cD484b9F37d37952eC9080557cd`):
+   - `grantRole(DEFAULT_ADMIN_ROLE, 0x839395e20bbB182fa440d08F850E6c7A8f6F0780)` — grants griff.eth admin authority.
+     `DEFAULT_ADMIN_ROLE` = `0x0000000000000000000000000000000000000000000000000000000000000000` (32 zero bytes).
+   - `grantRole(MINTER_ROLE, <Giveth ops wallet>)` — grants your Giveth ops wallet minting authority.
      `MINTER_ROLE` = `keccak256("MINTER_ROLE")` =
-     `0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6`
-     (use that exact bytes32 in the input).
-   - `revokeRole(MINTER_ROLE, 0x16D89551D8635341bdB6a3dAEdc57e0ca43C42d4)`.
+     `0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6`.
+   - `revokeRole(MINTER_ROLE, 0x16D89551D8635341bdB6a3dAEdc57e0ca43C42d4)` — removes minting from the xerxes deployer.
+   - `renounceRole(DEFAULT_ADMIN_ROLE, 0x72315dddeb862cD484b9F37d37952eC9080557cd)` — Zep gives up his own admin role.
 
-4. **TallyCommit contract — replace admin** (Arbiscan, Write tab on
-   `0x6b6cefa25fa3ce9623806a86a08c62e24520513c`):
-   - Connect with the deployer wallet (since it's the current admin).
-   - `transferAdmin(<Giveth ops wallet>)`.
+3. **TallyCommit contract — transfer admin**
+   (Arbiscan, Write tab on `0x6b6cefa25fa3ce9623806a86a08c62e24520513c`):
 
-5. **Verify**: re-read `hasRole(MINTER_ROLE, 0x16D8…42d4)` → expect
-   `false`. Re-read `admin()` on TallyCommit → expect the new address.
+   The xerxes deployer wallet is currently the admin and must sign
+   the transfer itself:
+   - `transferAdmin(0x839395e20bbB182fa440d08F850E6c7A8f6F0780)` — moves admin to griff.eth.
 
-6. **Burn the old key**: the Xerxes-side `.secrets/thedaolog_deployer.json`
-   file can be deleted once you've confirmed the new wallet works
-   end-to-end (mint a test badge, run a test commit). Until then keep
-   it as a fallback.
+   Then, separately, griff.eth needs the periodic `commit` calls signed
+   by your Giveth ops wallet. Either:
+   - griff.eth calls `transferAdmin(<Giveth ops wallet>)` — simplest,
+     but ops wallet becomes admin too. Or:
+   - Keep griff.eth as admin and refactor the API's commit endpoint
+     to propose-not-send when admin is a separate wallet. See
+     HANDOFF.md §10 for the multisig variant; same pattern applies.
+
+4. **Verify** (Arbiscan, Read tab on each contract):
+   - Badge: `hasRole(DEFAULT_ADMIN_ROLE, 0x839395e20bbB182fa440d08F850E6c7A8f6F0780)` → `true`.
+   - Badge: `hasRole(DEFAULT_ADMIN_ROLE, 0x72315dddeb862cD484b9F37d37952eC9080557cd)` → `false`.
+   - Badge: `hasRole(MINTER_ROLE, 0x16D89551D8635341bdB6a3dAEdc57e0ca43C42d4)` → `false`.
+   - Badge: `hasRole(MINTER_ROLE, <Giveth ops wallet>)` → `true`.
+   - TallyCommit: `admin()` → `0x839395e20bbB182fa440d08F850E6c7A8f6F0780` (or your Giveth ops wallet, depending on what you picked in step 3).
+
+5. **Smoke test** with the new wallet on Railway:
+   - Mint a test badge using `scripts/mint-batch-4.mjs` pointed at your
+     new key. Should succeed.
+   - Close a test proposal via the API's commit endpoint. Should
+     produce a tx hash signed by your Giveth ops wallet.
+
+6. **Burn the old testbed key**: once steps 4 and 5 pass, tell Zep he
+   can delete `.secrets/thedaolog_deployer.json` from the windows
+   machine. After that, the xerxes side has no operational power over
+   anything in production.
 
 ---
 
