@@ -1273,11 +1273,7 @@ function _LiveHolders({ token }) {
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 60, background: "var(--dao-blue-950)" }}>
           <div style={{ width: 460, color: "white" }}>
-            <div className="font-mono" style={{ fontSize: 11, letterSpacing: "0.1em", color: "rgba(255,255,255,0.6)", textTransform: "uppercase" }}>Welcome</div>
-            <div className="font-display" style={{ fontSize: 36, fontWeight: 700, marginTop: 6 }}>Welcome Starling</div>
-            <div className="font-body" style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", marginTop: 8, lineHeight: 1.6 }}>
-              Check what Ethereum's top security experts are reviewing. ETHSecurity Badge holder addresses unlock voting + submission.
-            </div>
+            <div className="font-display" style={{ fontSize: 36, fontWeight: 700 }}>Welcome Starling</div>
 
             <div style={{ marginTop: 32 }}>
               <button
@@ -1285,14 +1281,14 @@ function _LiveHolders({ token }) {
                 style={{ justifyContent: "center", width: "100%", fontSize: 16, padding: "16px 24px" }}
                 onClick={() => onConnect && onConnect()}
               >
-                Enter the murmuration
+                Enter
               </button>
             </div>
 
             <div style={{ height: 1, background: "rgba(255,255,255,0.1)", marginTop: 22 }} />
 
             <div className="font-mono" style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 18, lineHeight: 1.6 }}>
-              Don't hold a badge? You'll land in read-only mode and can still browse every murmuration and see how the ETHSecurity experts voted.
+              Don't hold a badge? You can still watch the murmurations of Ethereum security experts.
             </div>
           </div>
         </div>
@@ -1317,7 +1313,7 @@ function _LiveHolders({ token }) {
             <div className="font-mono" style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text-muted)" }}>Active votes</div>
             <div className="font-display" style={{ fontSize: 56, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-0.02em", lineHeight: 1.05 }}>Votes</div>
             <div className="font-body" style={{ fontSize: 16, color: "var(--text-muted)", marginTop: 8, maxWidth: 640 }}>
-              {open.length} vote{open.length === 1 ? "" : "s"} open right now. {role === "visitor" ? "Connect a wallet that holds an ETHSecurity Badge to participate." : null}
+              {open.length} vote{open.length === 1 ? "" : "s"} open. {role === "visitor" ? "Connect an ETHSecurity Badge wallet to participate." : null}
             </div>
           </div>
           {canAdmin(role) && (
@@ -1969,7 +1965,7 @@ function _LiveHolders({ token }) {
               </div>
           ) : (
             <div style={{ marginTop: 20, padding: 14, background: "var(--dao-paper-2)", borderRadius: 10, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.55 }}>
-              <b style={{ color: "var(--text-primary)" }}>Read-only.</b> Connect a wallet that holds an ETHSecurity Badge to allocate.
+              <b style={{ color: "var(--text-primary)" }}>Read-only.</b> Connect an ETHSecurity Badge wallet to allocate.
             </div>
           )}
         </div>
@@ -1987,7 +1983,7 @@ function _LiveHolders({ token }) {
           <div style={{ background: "rgba(255,60,56,0.10)", border: "1px solid rgba(255,60,56,0.25)", borderLeft: "4px solid var(--dao-red)", borderRadius: 10, padding: "14px 18px", fontSize: 14, color: "var(--text-primary)", marginBottom: 18, lineHeight: 1.55 }}>
             Don't see the choice you want? {canSubmit(role) ? (
               <a onClick={onSubmit} style={{ color: "var(--dao-red)", fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>create a direction here</a>
-            ) : <span style={{ color: "var(--dao-red)", fontWeight: 700 }}>connect a wallet that holds an ETHSecurity Badge to add one</span>} and it'll be added to the ballot.
+            ) : <span style={{ color: "var(--dao-red)", fontWeight: 700 }}>connect an ETHSecurity Badge wallet to add one to the ballot</span>}.
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {issues.map(iss => {
@@ -2278,7 +2274,7 @@ function _LiveHolders({ token }) {
                     </div>
                     {!canVote(role) && (
                       <div style={{ marginTop: 14, fontSize: 11, color: "var(--on-blue-soft)", lineHeight: 1.5 }}>
-                        Read-only. Connect a wallet that holds an ETHSecurity Badge to vote.
+                        Read-only. Connect an ETHSecurity Badge wallet to vote.
                       </div>
                     )}
                   </>
@@ -2442,29 +2438,11 @@ function _LiveHolders({ token }) {
       return (
         <div style={{ padding: 80, textAlign: "center" }}>
           <div className="font-display" style={{ fontSize: 32, fontWeight: 700, color: "var(--text-primary)" }}>Only ETHSecurity Badge holders can submit issues</div>
-          <div className="font-body" style={{ color: "var(--text-muted)", marginTop: 8 }}>If you don't want to connect a wallet, you can fork the repo and open an issue on GitHub instead.</div>
+          <div className="font-body" style={{ color: "var(--text-muted)", marginTop: 8 }}>Don't want to connect? Open an issue on GitHub instead.</div>
           <a href="https://github.com/xerxes-openclaw/thedaolog-issues/issues/new" target="_blank" rel="noreferrer" className="btn btn-ghost" style={{ marginTop: 20 }}>↗ Open on GitHub</a>
         </div>
       );
-      }
-      if (_preselectClosed) {
-      return (
-        <div style={{ padding: 80, textAlign: "center", maxWidth: 560, margin: "0 auto" }}>
-          <div className="font-display" style={{ fontSize: 28, fontWeight: 700, color: "var(--text-primary)" }}>This vote is closed</div>
-          <div className="font-body" style={{ color: "var(--text-muted)", marginTop: 8, lineHeight: 1.5 }}>"{_preselectedRound.title}" stopped accepting new options when it closed. Check the open votes for somewhere your submission belongs.</div>
-          <button className="btn btn-ghost" style={{ marginTop: 20 }} onClick={() => { if (typeof window !== "undefined") { window.history.pushState({}, "", "/votes"); window.dispatchEvent(new PopStateEvent("popstate")); } }}>← Back to votes</button>
-        </div>
-      );
-      }
-      if (_preselectIneligible) {
-      return (
-        <div style={{ padding: 80, textAlign: "center", maxWidth: 560, margin: "0 auto" }}>
-          <div className="font-display" style={{ fontSize: 28, fontWeight: 700, color: "var(--text-primary)" }}>You don't hold the badge for this vote</div>
-          <div className="font-body" style={{ color: "var(--text-muted)", marginTop: 8, lineHeight: 1.5 }}>"{_preselectedRound.title}" requires an ETHSecurity Badge that isn't in your wallet. Ask an admin to mint you the right one and refresh.</div>
-          <button className="btn btn-ghost" style={{ marginTop: 20 }} onClick={() => { if (typeof window !== "undefined") { window.history.pushState({}, "", "/vote/" + preselectRoundId); window.dispatchEvent(new PopStateEvent("popstate")); } }}>← Back to vote</button>
-        </div>
-      );
-      }
+    }
 
     return (
       <div style={{ padding: "32px 40px", maxWidth: 880, margin: "0 auto" }}>
@@ -2622,8 +2600,7 @@ function _LiveHolders({ token }) {
     if (!address) {
       return (
         <div style={{ padding: 80, textAlign: "center", maxWidth: 560, margin: "0 auto" }}>
-          <div className="font-display" style={{ fontSize: 28, fontWeight: 700, color: "var(--text-primary)" }}>Connect a wallet to see your ballot</div>
-          <div className="font-body" style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 8 }}>This page shows your signed votes across every murmuration. Connect the wallet you voted with.</div>
+          <div className="font-display" style={{ fontSize: 28, fontWeight: 700, color: "var(--text-primary)" }}>Connect your wallet to see your ballot.</div>
         </div>
       );
     }
