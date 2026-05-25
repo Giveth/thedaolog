@@ -3315,6 +3315,77 @@ function _LiveHolders({ token }) {
   // ── App shell ────────────────────────────────────────────────────
   function F2App({ role, address, isIncognito, onDisconnect, onConnectClick, tokens, setTokens }) {
     const [screen, setScreen] = useState("rounds");
+    const [_saveToast, _setSaveToast] = useState(null);
+    useEffect(() => {
+      if (!_saveToast) return;
+      const t = setTimeout(() => _setSaveToast(null), 7000);
+      return () => clearTimeout(t);
+    }, [_saveToast]);
+    const { data: _walletClient } = wagmi.useWalletClient();
+    const _hydrated = useRef(false);
+    // Public-facing state — used by render so screens can show skeletons
+    // while the initial /api/proposals fetch is in flight, instead of
+    // flashing "Round not found" for a fresh deep-link.
+    const [_hydrationDone, _setHydrationDone] = useState(false);
+    useEffect(() => {
+      if (_hydrated.current) return;
+      _hydrated.current = true;
+      (async () => {
+        try {
+          const fetched = await votingApi.fetchProposals();
+          if (!fetched || fetched.length === 0) { _setHydrationDone(true); return; }
+          const newRounds = [];
+          for (const p of fetched) {
+            for (const opt of (p.options || [])) {
+              if (!ISSUES.find((i) => i.id === opt.id)) {
+                ISSUES.push({
+                  id: opt.id,
+                  title: opt.label,
+                  severity: "info",
+                  area: "Vote option",
+                  body: opt.body || "",
+                  githubUrl: opt.github && opt.github.url,
+                  githubNumber: opt.github && opt.github.number,
+                });
+              }
+            }
+            const closesMs = new Date(p.deadline).getTime();
+            // Default tokenId to the registry's default if the API didn't
+            // return one (legacy proposals created before the API stored
+            // tokenId). Without this, eligibility lookup falls through to
+            // null and badge-holding wallets are wrongly told they can't
+            // submit. The default token (BUIDLER) is the right call for
+            // any vote that was created in this dapp.
+            const _defaultTokId = (tokens || []).find((t) => t.isDefault)?.id || (tokens || [])[0]?.id || null;
+            newRounds.push({
+              id: p.id,
+              title: p.title,
+              blurb: p.description || "",
+              voting: p.votingMode || "quadratic",
+              budget: Number(p.budget) || 100,
+              cap: 0,
+              opens: p.createdAt || new Date().toISOString(),
+              closes: p.deadline,
+              rolling: false,
+              status: closesMs > Date.now() ? "open" : "closed",
+              voters: 0,
+              issueIds: (p.options || []).map((o) => o.id),
+              tokenId: p.tokenId || _defaultTokId,
+              accent: "red",
+            });
+          }
+          setRounds((prev) => {
+            const byId = new Map(prev.map((r) => [r.id, r]));
+            for (const r of newRounds) byId.set(r.id, r);
+            return Array.from(byId.values());
+          });
+        } catch (e) {
+          console.error("[F2App] hydrate failed:", e);
+        } finally {
+          _setHydrationDone(true);
+        }
+      })();
+    }, []);
     const [rounds, setRounds] = useState(ROUNDS);
     const [currentRound, setCurrentRound] = useState(null);
     const [currentIssue, setCurrentIssue] = useState(null);

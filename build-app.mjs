@@ -343,7 +343,7 @@ $2`,
 // F2 components that close over it pick up synthesized entries
 // automatically.
 flow2 = flow2.replace(
-  /(function F2App\(\{ role, address, onDisconnect, onConnectClick, tokens, setTokens \}\) \{\n\s*const \[screen, setScreen\] = useState\("rounds"\);)/,
+  /(function F2App\(\{ role, address, isIncognito, onDisconnect, onConnectClick, tokens, setTokens \}\) \{\n\s*const \[screen, setScreen\] = useState\("rounds"\);)/,
   `$1
     const _hydrated = useRef(false);
     // Public-facing state — used by render so screens can show skeletons
@@ -545,7 +545,7 @@ flow2 = flow2.replace(
 // --- F2App: add the toast state at top + render a global toast at the
 // bottom of F2Chrome (covers admin save, delete, etc.).
 flow2 = flow2.replace(
-  /(function F2App\(\{ role, address, onDisconnect, onConnectClick, tokens, setTokens \}\) \{\n\s*const \[screen, setScreen\] = useState\("rounds"\);)/,
+  /(function F2App\(\{ role, address, isIncognito, onDisconnect, onConnectClick, tokens, setTokens \}\) \{\n\s*const \[screen, setScreen\] = useState\("rounds"\);)/,
   `$1
     const [_saveToast, _setSaveToast] = useState(null);
     useEffect(() => {
