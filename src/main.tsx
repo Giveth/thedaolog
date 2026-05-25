@@ -20,12 +20,10 @@ import {
   type RegisteredToken,
 } from "./eligibility";
 
-// Hardcoded admin wallets (per Zep, 2026-05-01). Lowercased so the
-// comparison against `useAccount().address` is case-insensitive.
+// Hardcoded admin wallets (per Zep, 2026-05-25: only griff.eth). Lowercased
+// so the comparison against `useAccount().address` is case-insensitive.
 const ADMIN_ADDRESSES = new Set<string>([
-  "0xb0bb2dafd918104c1a7761430fd51e7776749edf",
-  "0x72315dddeb862cd484b9f37d37952ec9080557cd",
-  "0x839395e20bbb182fa440d08f850e6c7a8f6f0780", // Griff
+  "0x839395e20bbb182fa440d08f850e6c7a8f6f0780", // griff.eth
 ]);
 
 // How long to wait on a "connecting" status before assuming the wallet
