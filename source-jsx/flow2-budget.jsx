@@ -22,7 +22,7 @@ const F2 = (() => {
   const canAdmin  = (r) => r === "admin";
 
   // ── Top chrome ───────────────────────────────────────────────────
-  function F2Chrome({ active, onNav, role, address, onDisconnect, onConnectClick, connected, children }) {
+  function F2Chrome({ active, onNav, role, address, isIncognito, onDisconnect, onConnectClick, connected, children }) {
     // Submit tab intentionally omitted — issues are added from inside the
     // vote ("+ Add issue") and that route already pre-targets the current
     // round, so a standalone Submit tab is redundant noise.
@@ -164,7 +164,7 @@ const F2 = (() => {
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             {connected && (role === "badgeholder" || role === "admin")
-              ? <BadgePfp address={address} role={role} />
+              ? <BadgePfp address={address} role={role} isIncognito={isIncognito} />
               : <RoleChip role={role} />}
             {connected ? (
               <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={onDisconnect}>Disconnect</button>
@@ -232,7 +232,7 @@ const F2 = (() => {
   // Header badge — replaces RoleChip for badgeholder/admin wallets.
   // Shows the wallet's deterministic PFP; click to zoom into a fullscreen
   // modal with the wallet address + role.
-  function BadgePfp({ address, role }) {
+  function BadgePfp({ address, role, isIncognito }) {
     const [open, setOpen] = useState(false);
     // Re-render after the snapshot mapping + incognito list load so the
     // PFP can swap in (or we stay on the RoleChip if this wallet isn't
@@ -240,7 +240,7 @@ const F2 = (() => {
     const [, _bump] = useReducer((n) => n + 1, 0);
     useEffect(() => { _ensurePfpMapping().then(_bump); }, []);
     const idx = _pfpIndexFor(address);
-    const isIncog = _isIncognito(address);
+    const isIncog = isIncognito || _isIncognito(address);
     // Resolution order:
     //   1. address is on the anon list → spy starling
     //   2. address is in the 200-holder snapshot → its assigned PFP
@@ -2018,7 +2018,7 @@ const F2 = (() => {
     const round = currentRound ? rounds.find(r => r.id === currentRound) : null;
 
     return (
-      <F2Chrome active={screen === "round" || screen === "issue" ? "rounds" : screen} onNav={nav} role={role} address={address} onDisconnect={() => { setScreen("connect"); setRole("visitor"); }} onConnectClick={onConnectClick} connected={!!address}>
+      <F2Chrome active={screen === "round" || screen === "issue" ? "rounds" : screen} onNav={nav} role={role} address={address} isIncognito={isIncognito} onDisconnect={() => { setScreen("connect"); setRole("visitor"); }} onConnectClick={onConnectClick} connected={!!address}>
         {screen === "rounds" && (
           <F2RoundsList
             rounds={rounds}

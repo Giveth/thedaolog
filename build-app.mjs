@@ -182,7 +182,7 @@ flow2 = flow2.replace(/\n\s*return \{ F2App \};\n\}\)\(\);\n\nwindow\.F2App = F2
 // the registry is shared with the role derivation hook.
 flow2 = flow2.replace(
   /function F2App\(\) \{\n\s*const \[screen, setScreen\] = useState\("connect"\);\n\s*const \[role, setRole\] = useState\("badgeholder"\);/,
-  `function F2App({ role, address, onDisconnect, onConnectClick, tokens, setTokens }) {\n    const [screen, setScreen] = useState("rounds");`
+  `function F2App({ role, address, isIncognito, onDisconnect, onConnectClick, tokens, setTokens }) {\n    const [screen, setScreen] = useState("rounds");`
 );
 // Remove the dead "if (screen === 'connect') return <F2Connect ... />" block.
 // Spans multiple lines and contains nested `}` from the JSX expression, so
