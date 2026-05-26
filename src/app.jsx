@@ -2028,9 +2028,6 @@ function _LiveHolders({ token }) {
                       style={{ width: 56, height: 56, flexShrink: 0, userSelect: "none", pointerEvents: "none" }}
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                        <span className="font-mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>#{iss.num} · {iss.repo}</span>
-                      </div>
                       <div className="font-display" style={{ fontSize: 18, fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.3 }}>{iss.title}</div>
                     </div>
                   </div>
