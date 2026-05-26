@@ -555,11 +555,11 @@ const F2 = (() => {
           <div style={{ position: "absolute", inset: 40, display: "flex", flexDirection: "column", justifyContent: "space-between", color: "white", zIndex: 2 }}>
             <Wordmark light size={68} />
             <div>
-              <div className="font-mono" style={{ fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--dao-gold-300)", marginBottom: 14 }}>Murmuration ·{"  "}theDAO's DAO</div>
-              <div className="font-display" style={{ fontSize: 60, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.05, color: "white" }}>
+              <div className="font-mono" style={{ fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--dao-gold-300)", marginBottom: 14, padding: "10px 18px", textShadow: "0 1px 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.9), 0 0 18px rgba(0,0,0,0.65)", position: "relative", zIndex: 2 }}>Murmuration ·{"  "}theDAO's DAO</div>
+              <div className="font-display" style={{ fontSize: "clamp(36px, 7vw, 60px)", fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.05, color: "white" }}>
                 200 experts.<br/>Murmuring<br/><span style={{ color: "var(--dao-gold-300)" }}>To one direction</span>
               </div>
-              <div className="font-body" style={{ fontSize: 16, color: "white", marginTop: 24, maxWidth: 480, lineHeight: 1.6, padding: "18px 22px", background: "rgba(8, 22, 51, 0.55)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", position: "relative", zIndex: 2 }}>
+              <div className="font-body" style={{ fontSize: 16, color: "white", marginTop: 24, maxWidth: "min(480px, 100%)", lineHeight: 1.6, padding: "10px 18px", textShadow: "0 1px 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.9), 0 0 18px rgba(0,0,0,0.65)", position: "relative", zIndex: 2 }}>
                 TheDAO's ETHSecurity Badge holders coordinate with Murmurations. Murmurs are opportunities where TheDAO's elite group of Ethereum security experts can signal the direction they want TheDAO to go. Anyone can watch the murmurs but only Badge holders can participate in murmurs and propose directions.
               </div>
             </div>
