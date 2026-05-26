@@ -1163,18 +1163,9 @@ const F2 = (() => {
     return (
       <div style={{ padding: "32px 40px", maxWidth: 1100, margin: "0 auto" }}>
         <a onClick={onBack} className="font-mono" style={{ fontSize: 11, color: "var(--text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>← {round.title}</a>
-        <div style={{ marginTop: 16, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <SevTag s={issue.severity} />
-          <span className="tag-mono">{issue.area}</span>
-          <span className="tag-mono">{issue.chain}</span>
-          <span className="font-mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>· #{issue.num} · {issue.repo}</span>
-        </div>
-        <h1 className="font-display" style={{ fontSize: 44, fontWeight: 700, color: "var(--text-primary)", margin: "12px 0", lineHeight: 1.1, letterSpacing: "-0.02em" }}>
+        <h1 className="font-display" style={{ fontSize: 44, fontWeight: 700, color: "var(--text-primary)", margin: "16px 0 28px", lineHeight: 1.1, letterSpacing: "-0.02em" }}>
           {issue.title}
         </h1>
-        <div className="font-mono" style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 28 }}>
-          opened by <b style={{ color: "var(--text-primary)" }}>{issue.author}</b> · {issue.opened} ago · {issue.comments} comments
-        </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 32 }}>
           <div className="font-body" style={{ fontSize: 16, lineHeight: 1.7, color: "var(--text-primary)" }}>
             {issue.body}
@@ -1240,14 +1231,14 @@ const F2 = (() => {
                       </div>
                       {round.voting === "quadratic" && (
                         <div className="font-mono" style={{ fontSize: 10, marginTop: 8, color: "var(--on-blue-soft)", letterSpacing: "0.04em" }}>
-                          This issue: <b style={{ color: "white" }}>{cost} cr</b> · Next vote: <b style={{ color: nextCost <= round.budget - usedExcl - cost ? "white" : "rgba(255,140,120,0.9)" }}>+{nextCost} cr</b>
+                          This direction: <b style={{ color: "white" }}>{cost} cr</b> · Next: <b style={{ color: nextCost <= round.budget - usedExcl - cost ? "white" : "rgba(255,140,120,0.9)" }}>+{nextCost} cr</b>
                         </div>
                       )}
                     </div>
 
                     <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.1)", display: "flex", flexDirection: "column", gap: 8 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: "var(--on-blue-soft)" }}>Round total</span><span className="font-mono">{issue.totalVotes.toLocaleString()}</span></div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: "var(--on-blue-soft)" }}>Voters</span><span className="font-mono">{issue.voters}</span></div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: "var(--on-blue-soft)" }}>Murmuration total</span><span className="font-mono">{issue.totalVotes.toLocaleString()}</span></div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: "var(--on-blue-soft)" }}>Murmurs</span><span className="font-mono">{issue.voters}</span></div>
                     </div>
                     {!canVote(role) && (
                       <div style={{ marginTop: 14, fontSize: 11, color: "var(--on-blue-soft)", lineHeight: 1.5 }}>
