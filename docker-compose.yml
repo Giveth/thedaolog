@@ -1,0 +1,37 @@
+# Local-dev Postgres for theDAO/log.
+#
+# Spin up:   docker compose up -d db
+# Tear down: docker compose down
+# Wipe data: docker compose down -v   (drops the volume)
+#
+# Matches the default DATABASE_URL in server/db.mjs, so the API server
+# can `node server/api.mjs` against this with zero extra config.
+#
+# Kay's deploy: ignore this file and point DATABASE_URL at the org's
+# managed Postgres. The schema is auto-applied on first connect by
+# server/db.mjs (CREATE TABLE IF NOT EXISTS), so no separate setup step.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: thedaolog-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: thedaolog
+      POSTGRES_PASSWORD: thedaolog
+      POSTGRES_DB: thedaolog
+    # Host port 15432 to avoid clashes with any existing local Postgres
+    # (WSL relay grabs 5432 + 5433 on this Windows box by default). The
+    # default DATABASE_URL in server/db.mjs points at 15432 to match.
+    ports:
+      - "15432:5432"
+    volumes:
+      - thedaolog-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U thedaolog -d thedaolog"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  thedaolog-db-data:

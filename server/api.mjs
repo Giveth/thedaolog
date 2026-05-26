@@ -13,9 +13,7 @@
 // Port: 7101  (vite proxies /api/* → here)
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFile } from "node:fs/promises";
 import {
   createPublicClient,
   createWalletClient,
@@ -29,11 +27,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { arbitrum } from "viem/chains";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, "..");
-const DATA_DIR = path.join(ROOT, "data");
-const BALLOTS_FILE = path.join(DATA_DIR, "ballots.json");
-const PROPOSALS_FILE = path.join(DATA_DIR, "proposals.json");
+// Ballots and proposals now live in Postgres via server/db.mjs.
 
 // BUIDLER badge — eligibility token. Hardcoded for now; lift to config
 // when there's more than one supported eligibility token.
@@ -444,50 +438,34 @@ async function verifyOptionDelete(req, expectedProposalId, expectedOptionId) {
 }
 
 // ---------- storage helpers ---------------------------------------
-async function readJson(file, fallback) {
-  try {
-    const txt = await readFile(file, "utf8");
-    return JSON.parse(txt);
-  } catch (e) {
-    if (e.code === "ENOENT") return fallback;
-    throw e;
-  }
-}
-async function writeJsonAtomic(file, value) {
-  await mkdir(path.dirname(file), { recursive: true });
-  const tmp = file + ".tmp";
-  await writeFile(tmp, JSON.stringify(value, null, 2));
-  // rename is atomic on the same filesystem; cleans up the .tmp in one step
-  // and avoids the previous bug where both .tmp and the real file lingered
-  // with identical content after every write.
-  await rename(tmp, file);
-}
-
-// ballots.json shape:
+//
+// Storage moved from local JSON files (data/ballots.json,
+// data/proposals.json) to Postgres in commit <DB-MIGRATION>. The
+// loadBallots/saveBallots/loadProposals/saveProposals API surface is
+// preserved exactly (same map shapes in and out) so the route handlers
+// below don't need to know about the change. Set DATABASE_URL to point
+// at your Postgres; see server/db.mjs and docker-compose.yml.
+//
+// ballots map shape (unchanged):
 // {
 //   "<proposalId>": {
-//     "<voterAddress.toLowerCase()>": { ballot, signature, signedAt }
+//     "<voterAddress.toLowerCase()>": { ballot, signature, signedAt, ... }
 //   }
 // }
-async function loadBallots() {
-  return readJson(BALLOTS_FILE, {});
-}
-async function saveBallots(b) {
-  await writeJsonAtomic(BALLOTS_FILE, b);
-}
-
-// proposals.json shape:
+//
+// proposals map shape (unchanged):
 // {
 //   "<proposalId>": {
-//     id, title, description, votingMode, budget, options[], deadline, createdAt, createdBy
+//     id, title, description, votingMode, budget, options[], deadline,
+//     createdAt, createdBy, ...
 //   }
 // }
-async function loadProposals() {
-  return readJson(PROPOSALS_FILE, {});
-}
-async function saveProposals(p) {
-  await writeJsonAtomic(PROPOSALS_FILE, p);
-}
+import {
+  loadBallots,
+  saveBallots,
+  loadProposals,
+  saveProposals,
+} from "./db.mjs";
 
 // ---------- server ------------------------------------------------
 const app = Fastify({ logger: true });

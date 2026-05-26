@@ -12,6 +12,68 @@ and the brand/PFP system — this doc is the deploy-day walkthrough.
 > §6 (updated) — pre-flight covers the 200 PFPs + favicon + OG card.
 > HANDOFF.md §11–§12 cover the design tokens + PFP/incognito system
 > in detail — read those first if you're new to the project.
+>
+> **Storage backend changed 2026-05-26:** the API server now reads/writes
+> to **Postgres** instead of `data/*.json`. Set `DATABASE_URL` to point at
+> your managed Postgres before booting the API (see §S below for the new
+> deploy steps). The volume-mount-for-`data/` instructions in §3 step 4
+> and the JSON-backup notes near the bottom are deprecated — keep them
+> only as historical context.
+
+---
+
+## S. Postgres storage backend (read this first)
+
+The dapp persists two tables in Postgres:
+
+| Table | What it holds | Key |
+|---|---|---|
+| `proposals` | One row per voting round, full proposal JSON in `data` (JSONB) | `id` |
+| `ballots`   | One row per signed ballot, full ballot+signature JSON in `data` (JSONB) | `(proposal_id, voter)` |
+
+Schema is auto-applied on first connection via `CREATE TABLE IF NOT EXISTS`
+inside `server/db.mjs` — no separate migration step needed.
+
+### Connection
+
+The API reads `DATABASE_URL` at boot. The connection string format is the
+standard Postgres URI:
+
+```
+postgres://<user>:<password>@<host>:<port>/<dbname>
+```
+
+On Kay's deploy, point `DATABASE_URL` at the org's managed Postgres. Local
+dev uses the bundled `docker-compose.yml` which spins up a matching
+Postgres on host port `15432`:
+
+```bash
+docker compose up -d db                  # start local Postgres
+node scripts/migrate-json-to-postgres.mjs  # import any existing data/*.json
+node server/api.mjs                       # API starts and connects
+```
+
+### Migration from the old JSON-file storage
+
+If you have legacy `data/ballots.json` and `data/proposals.json`, the
+script `scripts/migrate-json-to-postgres.mjs` imports them. It's
+idempotent — every row uses `ON CONFLICT (id) DO UPDATE`, so re-running
+won't duplicate or corrupt anything. On a clean Giveth deploy with no
+prior JSON the script reports "fresh DB, nothing to do" and exits 0.
+
+### Backups
+
+`pg_dump` of the `thedaolog` database is the canonical backup. The legacy
+"snapshot the `data/` volume" pattern in §later is obsolete. A nightly
+`pg_dump | gzip > backups/thedaolog-$(date +%F).sql.gz` rotated for 30
+days is plenty for the test-scale audience (~200 badgeholders, low write
+volume). Whatever Giveth uses for its other Postgres backups should
+apply unchanged.
+
+The cryptographic-recoverability story is unchanged: every ballot is
+EIP-712 signed by the voter, so even a total DB loss can be reconstructed
+from on-chain signatures the wallets still hold. The Merkle root anchored
+on-chain by `commit()` is the immutable result.
 
 The recommended target is **Railway** (~$5–10/mo, hobby tier), but the
 checklist applies to Render or Fly.io with minor wording changes. The
