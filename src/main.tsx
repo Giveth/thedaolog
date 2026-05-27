@@ -86,34 +86,50 @@ function WalletGate(): React.ReactElement {
     return balances.some((b) => b.status === "success" && typeof b.result === "bigint" && b.result > 0n);
   }, [balances]);
 
-  // Private-badge (incognito-side) NFT on Ethereum mainnet. Wallets holding
-  // this token are the anonymous side of an ETHSecurity badgeholder — they
-  // get the spy-starling/incognito PFP instead of their named one and count
-  // as badgeholders for voting. Dynamic balanceOf so new mints surface
-  // without redeploying public/assets/incognito-addresses.json.
+  // Two mainnet ETHSecurity-Badge contracts that grant badgeholder status:
+  //   * Public badge — the named-bird identity each holder votes with.
+  //     PFP comes from public/assets/pfp-mapping.json (200-holder snapshot).
+  //   * Private badge — the anonymous/incognito-side mint. Wallets holding
+  //     this NFT render the spy-starling PFP instead of their named one,
+  //     and the isIncognito flag flows through to BadgePfp.
+  // Both are dynamic balanceOf reads so new mints surface without any
+  // redeploy of the static JSON snapshots.
+  const PUBLIC_BADGE_CONTRACT = "0xf67c0ade41c607efebf198f9d6065ab1ec5ad4cd" as const;
   const PRIVATE_BADGE_CONTRACT = "0x3b49f45ec8796f64febb1ae0f5661791845ce35c" as const;
-  const { data: privateBadgeBalance } = useReadContracts({
-    contracts: [{
-      address: PRIVATE_BADGE_CONTRACT,
-      abi: ERC721_BALANCE_OF_ABI,
-      functionName: "balanceOf",
-      args: address ? [address] : undefined,
-      chainId: 1,
-    }],
+  const { data: mainnetBadgeBalances } = useReadContracts({
+    contracts: [
+      {
+        address: PUBLIC_BADGE_CONTRACT,
+        abi: ERC721_BALANCE_OF_ABI,
+        functionName: "balanceOf",
+        args: address ? [address] : undefined,
+        chainId: 1,
+      },
+      {
+        address: PRIVATE_BADGE_CONTRACT,
+        abi: ERC721_BALANCE_OF_ABI,
+        functionName: "balanceOf",
+        args: address ? [address] : undefined,
+        chainId: 1,
+      },
+    ],
     query: { enabled: !!address },
   });
+  const isPublicBadgeholder = React.useMemo(() => {
+    const b = mainnetBadgeBalances?.[0];
+    return !!b && b.status === "success" && typeof b.result === "bigint" && b.result > 0n;
+  }, [mainnetBadgeBalances]);
   const isIncognito = React.useMemo(() => {
-    if (!privateBadgeBalance || privateBadgeBalance.length === 0) return false;
-    const b = privateBadgeBalance[0];
-    return b.status === "success" && typeof b.result === "bigint" && b.result > 0n;
-  }, [privateBadgeBalance]);
+    const b = mainnetBadgeBalances?.[1];
+    return !!b && b.status === "success" && typeof b.result === "bigint" && b.result > 0n;
+  }, [mainnetBadgeBalances]);
 
   const role: "visitor" | "badgeholder" | "admin" = React.useMemo(() => {
     if (!address) return "visitor";
     if (ADMIN_ADDRESSES.has(address.toLowerCase())) return "admin";
-    if (isBadgeholder || isIncognito) return "badgeholder";
+    if (isBadgeholder || isPublicBadgeholder || isIncognito) return "badgeholder";
     return "visitor";
-  }, [address, isBadgeholder, isIncognito]);
+  }, [address, isBadgeholder, isPublicBadgeholder, isIncognito]);
 
   const [waitedTooLong, setWaitedTooLong] = React.useState(false);
   React.useEffect(() => {
