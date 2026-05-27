@@ -49,11 +49,27 @@ export const TOTAL_SUPPLY_ABI: Abi = [
 
 // Display-name → wagmi chainId. Must match the chains array in wagmi.ts;
 // unknown chains return undefined and the totalSupply read is skipped.
+// Keys are lowercased on lookup via resolveChainId() — case- and
+// punctuation-tolerant since admins type chain names by hand.
 export const CHAIN_NAME_TO_ID: Record<string, number> = {
   "Ethereum": 1,
+  "ethereum": 1,
+  "Mainnet": 1,
+  "mainnet": 1,
+  "Eth": 1,
+  "ETH": 1,
   "Arbitrum": 42161,
   "Arbitrum One": 42161,
+  "arbitrum": 42161,
+  "arbitrum one": 42161,
 };
+
+/** Resolve a free-text chain name to a chainId, or null if unknown. */
+export function resolveChainId(chainName: string | undefined | null): number | null {
+  if (!chainName) return null;
+  const trimmed = chainName.trim();
+  return CHAIN_NAME_TO_ID[trimmed] ?? CHAIN_NAME_TO_ID[trimmed.toLowerCase()] ?? null;
+}
 
 /**
  * Default registry seeded into the app on first run. Admin can add more

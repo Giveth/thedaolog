@@ -3643,6 +3643,19 @@ function _LiveHolders({ token }) {
               const _effectiveDeadline = saved.rolling
                 ? _ROLLING_DEADLINE
                 : (saved.closes || new Date(Date.now() + 7 * 86400 * 1000).toISOString());
+              // Resolve the eligibility token to a (address, chainId)
+              // pair the server can validate independently of the
+              // client-side registry. Without this, anything added
+              // through the round-create UI (which lives in
+              // localStorage only) wouldn't be known to the server at
+              // submit time. Falls back to the registry-only flow if
+              // the token has no chain set yet — server's KNOWN
+              // ELIGIBILITY_TOKENS still covers tok-buidler.
+              const _CHAIN_NAME_TO_ID = { "Ethereum": 1, "Mainnet": 1, "Eth": 1, "ETH": 1, "Arbitrum": 42161, "Arbitrum One": 42161 };
+              const _selectedToken = saved.tokenId ? (tokens || []).find(t => t.id === saved.tokenId) : null;
+              const _tokChainName = _selectedToken && _selectedToken.chain ? String(_selectedToken.chain).trim() : "";
+              const _tokChainId = _CHAIN_NAME_TO_ID[_tokChainName] || _CHAIN_NAME_TO_ID[_tokChainName.toLowerCase().replace(/w/g, c => c.toUpperCase())] || null;
+              const _tokAddress = _selectedToken && _selectedToken.address ? _selectedToken.address : null;
               try {
                 await votingApi.createProposal({
                   id: saved.id,
@@ -3653,6 +3666,8 @@ function _LiveHolders({ token }) {
                   options: opts,
                   deadline: _effectiveDeadline,
                   tokenId: saved.tokenId || null,
+                  tokenAddress: _tokAddress && _tokChainId ? _tokAddress : null,
+                  tokenChainId: _tokAddress && _tokChainId ? _tokChainId : null,
                 }, _walletClient, address);
                 // Only after server confirms: add to local state.
                 setRounds(prev => {

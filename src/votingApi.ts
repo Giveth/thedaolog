@@ -21,7 +21,9 @@ export interface Proposal {
   budget: number;
   options: VoteOption[];
   deadline: string; // ISO
-  tokenId: string | null; // registry id of the eligibility token
+  tokenId: string | null; // legacy registry id (server may have a hardcoded entry)
+  tokenAddress?: `0x${string}` | null; // eligibility-token contract — preferred over tokenId
+  tokenChainId?: number | null; // chain the token lives on (mainnet=1, arbitrum=42161)
   createdAt: string;
   createdBy: string | null;
   deletedOptionIds?: number[]; // soft-deleted option ids; allocations to these refund
@@ -286,6 +288,8 @@ export async function createProposal(
     options: VoteOption[];
     deadline: string;
     tokenId?: string | null;
+    tokenAddress?: `0x${string}` | null;
+    tokenChainId?: number | null;
   },
   walletClient: WalletClient,
   actor: `0x${string}`,

@@ -29,13 +29,11 @@ import { arbitrum, mainnet } from "viem/chains";
 
 // Ballots and proposals now live in Postgres via server/db.mjs.
 
-// BUIDLER badge — Arbitrum test eligibility token (dev rounds).
+// BUIDLER badge — Arbitrum test eligibility token (dev rounds). Kept
+// hardcoded as the default fallback for any legacy proposal that has
+// neither a tokenAddress+tokenChainId nor a known tokenId.
 const BUIDLER_CONTRACT = "0x32d664ca9ea4bad60b2b8ed61dec30692df43ac9";
 const BUIDLER_CHAIN = arbitrum;
-
-// Public ETHSecurity Badge — production eligibility token on mainnet.
-// Same contract surfaced client-side as PUBLIC_BADGE_CONTRACT in main.tsx.
-const PUBLIC_BADGE_CONTRACT = "0xf67c0ade41c607efebf198f9d6065ab1ec5ad4cd";
 
 const ERC721_BALANCE_OF_ABI = [
   {
@@ -548,9 +546,34 @@ app.get("/api/proposals/:id", async (req, reply) => {
 // `options` may be empty — the F2 flow lets admins create an empty vote
 // shell that voters then submit issues into via POST /:id/options.
 app.post("/api/proposals", async (req, reply) => {
-  const { id, title, description, votingMode, budget, options, deadline, tokenId } = req.body;
+  const { id, title, description, votingMode, budget, options, deadline, tokenId, tokenAddress, tokenChainId } = req.body;
   if (!id || !title || !deadline) {
     return reply.code(400).send({ error: "missing_fields", needs: ["id", "title", "deadline"] });
+  }
+  // Validate the eligibility-token spec. Either form is acceptable:
+  //   - tokenAddress + tokenChainId (new flow — admin-added tokens
+  //     work without a server code change)
+  //   - tokenId pointing at the legacy registry
+  // If tokenAddress is set without tokenChainId (or vice versa), reject
+  // — we never want a half-specified spec landing in the DB.
+  let _tokenAddress = null;
+  let _tokenChainId = null;
+  if (tokenAddress || tokenChainId) {
+    if (!tokenAddress || !tokenChainId) {
+      return reply.code(400).send({ error: "token_spec_incomplete", detail: "tokenAddress and tokenChainId must both be set" });
+    }
+    try {
+      _tokenAddress = getAddress(tokenAddress).toLowerCase();
+    } catch {
+      return reply.code(400).send({ error: "bad_token_address" });
+    }
+    _tokenChainId = Number(tokenChainId);
+    if (!SUPPORTED_ELIGIBILITY_CHAINS[_tokenChainId]) {
+      return reply.code(400).send({
+        error: "unsupported_token_chain",
+        detail: "tokenChainId must be one of: " + Object.keys(SUPPORTED_ELIGIBILITY_CHAINS).join(", "),
+      });
+    }
   }
   const verdict = await verifyAdminAction(req, "create_proposal", id);
   if (!verdict.ok) return reply.code(verdict.code).send({ error: verdict.error, detail: verdict.detail });
@@ -564,6 +587,8 @@ app.post("/api/proposals", async (req, reply) => {
     options: Array.isArray(options) ? options : [],
     deadline,
     tokenId: tokenId || null,
+    tokenAddress: _tokenAddress,
+    tokenChainId: _tokenChainId,
     createdAt: new Date().toISOString(),
     createdBy: verdict.actor,
   };
@@ -589,22 +614,35 @@ app.post("/api/proposals", async (req, reply) => {
 // for now: the proposal's tokenId only carries weight if it matches
 // our hardcoded registry (the BUIDLER badge). Once the registry is
 // shared between server + client, look up via that.
+// Legacy registry kept only for proposals created before the
+// tokenAddress + tokenChainId fields landed. New proposals carry the
+// eligibility-token address directly so admin-added tokens just work
+// without a server code change.
 const KNOWN_ELIGIBILITY_TOKENS = {
   "tok-buidler": { address: BUIDLER_CONTRACT, chain: BUIDLER_CHAIN },
-  // Maps the in-memory tokenId admins generate when they add the
-  // Public ETHSecurity Badge through the round-create UI. The client-
-  // side token registry is in-memory only (not persisted to DB / not
-  // propagated to the server), so anything created there only works at
-  // submit time if the server also knows the mapping. Temporary band-
-  // aid; the structural fix is moving the registry into the DB and
-  // having the proposal carry the eligibility-token ADDRESS directly
-  // instead of an opaque id.
-  "tok-mp1otry2": { address: PUBLIC_BADGE_CONTRACT, chain: mainnet },
 };
-// Proposals created before the tokenId field landed (and any future
-// proposal with no explicit eligibility token) fall back to BUIDLER.
-// Matches the client-side hydrate fallback in build-app.mjs.
 const DEFAULT_ELIGIBILITY_TOKEN_ID = "tok-buidler";
+
+// Chains we allow eligibility-token reads against. Each entry is the
+// viem chain object — used both to construct the per-chain RPC client
+// and to validate incoming tokenChainId at proposal-create time.
+const SUPPORTED_ELIGIBILITY_CHAINS = {
+  [mainnet.id]: mainnet,
+  [arbitrum.id]: arbitrum,
+};
+
+// Resolve a proposal to its eligibility-token spec. Prefer the
+// proposal's own tokenAddress + tokenChainId (new flow); fall back to
+// the legacy KNOWN_ELIGIBILITY_TOKENS lookup by tokenId.
+function resolveEligibilitySpec(p) {
+  if (p.tokenAddress && p.tokenChainId) {
+    const chain = SUPPORTED_ELIGIBILITY_CHAINS[Number(p.tokenChainId)];
+    if (!chain) return null;
+    return { address: p.tokenAddress, chain };
+  }
+  const tokenId = p.tokenId || DEFAULT_ELIGIBILITY_TOKEN_ID;
+  return KNOWN_ELIGIBILITY_TOKENS[tokenId] || null;
+}
 
 app.post("/api/proposals/:id/options", async (req, reply) => {
   const { label, body: optBody, submission, signature, githubUrl } = req.body || {};
@@ -667,15 +705,18 @@ app.post("/api/proposals/:id/options", async (req, reply) => {
   }
   if (!valid) return reply.code(401).send({ error: "invalid_signature" });
 
-  // Badge check (only if proposal has a known eligibility token).
-  // Admins (in the allowlist) bypass — they can submit on behalf of
-  // anyone for setup purposes. Otherwise the submitter must hold the
-  // proposal's eligibility badge on Arbitrum.
+  // Badge check. Admins (in the allowlist) bypass — they can submit on
+  // behalf of anyone for setup purposes. Otherwise the submitter must
+  // hold the proposal's eligibility badge on whichever chain the
+  // proposal specifies (mainnet for production badges, Arbitrum for
+  // the dev BUIDLER badge).
   if (!ADMIN_ADDRESSES.has(submitter.toLowerCase())) {
-    const tokenId = p.tokenId || DEFAULT_ELIGIBILITY_TOKEN_ID;
-    const tokenSpec = KNOWN_ELIGIBILITY_TOKENS[tokenId];
+    const tokenSpec = resolveEligibilitySpec(p);
     if (!tokenSpec) {
-      return reply.code(403).send({ error: "no_known_eligibility_token", detail: "proposal references an unknown token id: " + tokenId });
+      return reply.code(403).send({
+        error: "no_known_eligibility_token",
+        detail: "proposal has no usable eligibility token (neither tokenAddress+tokenChainId nor a registered tokenId)",
+      });
     }
     let badgeBalance;
     try {
