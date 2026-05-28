@@ -3,7 +3,6 @@ import {
   injectedWallet,
   metaMaskWallet,
   rabbyWallet,
-  walletConnectWallet,
   coinbaseWallet,
   rainbowWallet,
   frameWallet,
@@ -19,8 +18,13 @@ import { mainnet, arbitrum } from "wagmi/chains";
 // https://cloud.reown.com into VITE_WALLETCONNECT_PROJECT_ID.
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "PLACEHOLDER";
 
-// Match the wallet ordering Zep wanted: injected first (his Rabby + any
-// other extension wallets show up via EIP-6963), then the curated set.
+// walletConnectWallet is intentionally NOT in the connectors list. The
+// Giveth Reown project (the only one we have a projectId for) doesn't
+// have this app's tunnel hostname on its allowed-origins list, so the
+// WalletConnect relay returns 403 and the modal silently does nothing
+// when the user clicks WalletConnect. Until a Reown project is
+// provisioned with the murmurations origin allowlisted, the WC option
+// is removed from the modal to avoid the dead-click UX.
 const connectors = connectorsForWallets(
   [
     {
@@ -29,7 +33,7 @@ const connectors = connectorsForWallets(
     },
     {
       groupName: "Other",
-      wallets: [rainbowWallet, coinbaseWallet, frameWallet, safeWallet, walletConnectWallet],
+      wallets: [rainbowWallet, coinbaseWallet, frameWallet, safeWallet],
     },
   ],
   { appName: "theDAO/log", projectId },
