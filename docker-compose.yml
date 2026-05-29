@@ -26,8 +26,8 @@ services:
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
     ports:
-      - "${HTTP_PORT:-80}:80"
-      - "${HTTPS_PORT:-443}:443"
+      - "80:80"
+      - "443:443"
     volumes:
       - caddy-data:/data
       - caddy-config:/config
@@ -49,10 +49,8 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       THEDAOLOG_GITHUB_REPO: ${THEDAOLOG_GITHUB_REPO:-}
       DEPLOYER_PRIVATE_KEY: ${DEPLOYER_PRIVATE_KEY:-}
-    # Not published to the host — Caddy reaches it over the internal
-    # network. Uncomment to expose the API directly for debugging.
-    expose:
-      - "7101"
+    ports:
+      - "${APP_PORT:-7101}:7101"
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:7101/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 10s
