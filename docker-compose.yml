@@ -16,6 +16,7 @@ services:
   # SPA, and reverse-proxies /api/* to the app container. Set SITE_ADDRESS
   # to your domain in prod for automatic Let's Encrypt certs.
   caddy:
+    image: ghcr.io/giveth/thedaolog-caddy:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile.caddy
@@ -33,6 +34,7 @@ services:
       - caddy-config:/config
 
   app:
+    image: ghcr.io/giveth/thedaolog-app:${IMAGE_TAG:-latest}
     build:
       context: .
     container_name: thedaolog-app
@@ -44,7 +46,7 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 7101
-      DATABASE_URL: ${APP_DATABASE_URL:-postgres://thedaolog:thedaolog@db:5432/thedaolog}
+      DATABASE_URL: postgres://thedaolog:thedaolog@db:5432/thedaolog
       PINATA_JWT: ${PINATA_JWT:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       THEDAOLOG_GITHUB_REPO: ${THEDAOLOG_GITHUB_REPO:-}
