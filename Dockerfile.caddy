@@ -8,6 +8,11 @@ RUN corepack enable
 RUN apk add --no-cache python3 make g++
 
 COPY package.json pnpm-lock.yaml ./
+# patches/ holds pnpm patch files referenced by package.json's
+# patchedDependencies (the cuer border:0->1 fix that makes the
+# WalletConnect QR render). pnpm reads them during install, so they must
+# be copied before this step or it fails with ENOENT on the .patch file.
+COPY patches ./patches
 RUN pnpm install --frozen-lockfile
 
 COPY . .
