@@ -343,15 +343,80 @@ function WalletLockedHint({
 
 const queryClient = new QueryClient();
 
+// App-wide error boundary. Without this, any throw during render — e.g. a
+// bug inside a third-party component such as RainbowKit's WalletConnect QR
+// encoder — unmounts the whole React tree and leaves a blank screen with no
+// way out. The boundary catches it, keeps the page alive, and offers a
+// reload instead of the white-screen-of-death.
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("App crashed:", error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 16,
+            background: "#0d1f33",
+            color: "rgba(255,255,255,0.9)",
+            fontFamily: "system-ui, sans-serif",
+            padding: 24,
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 18, fontWeight: 600 }}>Something went wrong.</div>
+          <div style={{ fontSize: 13, opacity: 0.7, maxWidth: 420 }}>
+            {this.state.error.message}
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              background: "rgb(255,60,56)",
+              border: "none",
+              color: "white",
+              padding: "8px 18px",
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 ReactDOM.createRoot(document.getElementById("app")!).render(
   <React.StrictMode>
-    <WagmiProvider config={wagmiConfig}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider theme={darkTheme()} appInfo={{ appName: "theDAO/log" }}>
-          <WalletGate />
-        </RainbowKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <AppErrorBoundary>
+      <WagmiProvider config={wagmiConfig}>
+        <QueryClientProvider client={queryClient}>
+          <RainbowKitProvider theme={darkTheme()} appInfo={{ appName: "theDAO/log" }}>
+            <WalletGate />
+          </RainbowKitProvider>
+        </QueryClientProvider>
+      </WagmiProvider>
+    </AppErrorBoundary>
   </React.StrictMode>,
 );
 
