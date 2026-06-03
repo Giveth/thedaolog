@@ -57,7 +57,7 @@ export interface StoredBallot {
 // match the wallet's active chain at sign time, otherwise the wallet
 // refuses with "Provided chainId X must match active chainId Y".
 const DOMAIN = {
-  name: "theDAOlog",
+  name: "murmurations",
   version: "1",
   chainId: mainnet.id,
 } as const;

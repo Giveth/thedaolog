@@ -48,10 +48,23 @@ const ERC721_BALANCE_OF_ABI = [
 // One viem client per eligibility-token chain — eligibility tokens can
 // live on different chains (BUIDLER on Arbitrum, ETHSecurity Badge on
 // mainnet), so the balanceOf read needs to route to the right RPC.
+//
+// Explicit RPC URLs per chain. viem's bare http() falls back to the
+// chain's DEFAULT public RPC (cloudflare-eth / eth.merkle.io for
+// mainnet), which is aggressively rate-limited and was returning errors
+// from the server — surfacing to users as a 503 "rpc_failed" when they
+// tried to submit a direction (2026-06-03: Griff hit this on prod). Use
+// the same reliable providers the frontend already uses in wagmi.ts.
+// Overridable via env (MAINNET_RPC_URL / ARBITRUM_RPC_URL) for ops.
+const RPC_URLS = {
+  1: process.env.MAINNET_RPC_URL || "https://ethereum-rpc.publicnode.com",
+  42161: process.env.ARBITRUM_RPC_URL || "https://arb1.arbitrum.io/rpc",
+};
 const chainClients = new Map();
 function getChainClient(chain) {
   if (!chainClients.has(chain.id)) {
-    chainClients.set(chain.id, createPublicClient({ chain, transport: http() }));
+    const url = RPC_URLS[chain.id];
+    chainClients.set(chain.id, createPublicClient({ chain, transport: url ? http(url) : http() }));
   }
   return chainClients.get(chain.id);
 }
@@ -268,7 +281,7 @@ function canonicalLeaves(ballotsByVoter) {
 // is connecting wallets to; signatures are off-chain so it's fine to
 // decouple from where the badge contract lives (Arbitrum).
 const DOMAIN = {
-  name: "theDAOlog",
+  name: "murmurations",
   version: "1",
   chainId: 1,
 };

@@ -21,10 +21,22 @@ import {
 } from "./eligibility";
 
 // Hardcoded admin wallets. Lowercased so the comparison against
-// `useAccount().address` is case-insensitive.
-const ADMIN_ADDRESSES = new Set<string>([
-  "0x839395e20bbb182fa440d08f850e6c7a8f6f0780",
-]);
+// `useAccount().address` is case-insensitive. These ship to prod and
+// match the server's ADMIN_ADDRESSES allowlist (server/api.mjs).
+//
+// Additional per-environment admins can be added via
+// VITE_EXTRA_ADMIN_ADDRESSES (comma-separated, baked in at build time)
+// without editing this list.
+const ADMIN_ADDRESSES = new Set<string>(
+  [
+    "0x839395e20bbb182fa440d08f850e6c7a8f6f0780", // Griff
+    "0x72315dddeb862cd484b9f37d37952ec9080557cd", // Zep (also in server allowlist)
+    ...String(import.meta.env.VITE_EXTRA_ADMIN_ADDRESSES || "")
+      .split(",")
+      .map((a) => a.trim().toLowerCase())
+      .filter(Boolean),
+  ],
+);
 
 // How long to wait on a "connecting" status before assuming the wallet
 // isn't going to respond (most often: extension is locked and the
@@ -411,7 +423,7 @@ ReactDOM.createRoot(document.getElementById("app")!).render(
     <AppErrorBoundary>
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          <RainbowKitProvider theme={darkTheme()} appInfo={{ appName: "theDAO/log" }}>
+          <RainbowKitProvider theme={darkTheme()} appInfo={{ appName: "Murmuration" }}>
             <WalletGate />
           </RainbowKitProvider>
         </QueryClientProvider>

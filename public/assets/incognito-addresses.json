@@ -1,5 +1,0 @@
-{
-  "_note": "List of anonymous-side addresses (the ones derived via the ETHSecurity voting badge app). Wallets in this list render the incognito PFP in Murmuration's header. Append addresses to the 'addresses' array (lowercase). Re-deploy / refresh to pick up changes.",
-  "generatedAt": null,
-  "addresses": []
-}

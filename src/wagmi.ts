@@ -40,7 +40,7 @@ const connectors = connectorsForWallets(
       wallets: otherWallets,
     },
   ],
-  { appName: "theDAO/log", projectId },
+  { appName: "Murmuration", projectId },
 );
 
 // Arbitrum is included so on-chain reads (BUIDLER badge balanceOf for

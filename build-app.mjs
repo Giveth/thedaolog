@@ -644,7 +644,7 @@ const _verifyPanelComponent = `
     // resolve "Provided chainId X must match active chainId Y" wallet
     // errors. Verify must use the same value or every ballot reports as
     // tampered.
-    const _domain = { name: "theDAOlog", version: "1", chainId: 1 };
+    const _domain = { name: "murmurations", version: "1", chainId: 1 };
     const _types = {
       Allocation: [
         { name: "issueId", type: "uint256" },

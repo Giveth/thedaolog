@@ -1,4 +1,4 @@
-// Shared token-eligibility helpers for theDAO/log.
+// Shared token-eligibility helpers for Murmuration.
 //
 // Right now the only registered eligibility token is the Giveth BUIDLER
 // badge on Arbitrum One — the contract we deployed at
