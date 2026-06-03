@@ -1266,7 +1266,7 @@ function _LiveHolders({ token }) {
                 200 experts.<br/>Murmuring<br/><span style={{ color: "var(--dao-gold-300)" }}>To one direction</span>
               </div>
               <div className="font-body" style={{ fontSize: 16, color: "white", marginTop: 24, maxWidth: "min(480px, 100%)", lineHeight: 1.6, padding: "10px 18px", textShadow: "0 1px 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.9), 0 0 18px rgba(0,0,0,0.65)", position: "relative", zIndex: 2 }}>
-                TheDAO's ETHSecurity Badge holders coordinate with Murmurations. Murmurs are opportunities where TheDAO's elite group of Ethereum security experts can signal the direction they want TheDAO to go. Anyone can watch the murmurs but only Badge holders can participate in murmurs and propose directions.
+                TheDAO's ETHSecurity Badge holders coordinate through Murmurations. A murmuration is an opportunity for TheDAO's elite group of Ethereum security experts to signal the direction they want TheDAO to go. Anyone can watch the murmurations, but only Badge holders can participate and propose directions.
               </div>
             </div>
           </div>
