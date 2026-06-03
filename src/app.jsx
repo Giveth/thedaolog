@@ -723,18 +723,22 @@ function _LiveHolders({ token }) {
     admin:      "Admin",
   };
 
-  const canVote   = (r) => r === "badgeholder" || r === "admin";
-  const canSubmit = (r) => r === "badgeholder" || r === "admin";
+  // Voting & submitting require actually HOLDING an eligible badge, not the
+  // admin role. An admin who doesn't hold the NFT can't vote (per Zep
+  // 2026-06-03). holdsBadge = WalletGate's isBadgeholder. Back-compat: if
+  // undefined, fall back to role so older call sites don't break.
+  const canVote   = (r, holdsBadge) => holdsBadge !== undefined ? !!holdsBadge : (r === "badgeholder");
+  const canSubmit = (r, holdsBadge) => holdsBadge !== undefined ? !!holdsBadge : (r === "badgeholder");
   const canAdmin  = (r) => r === "admin";
 
   // ── Top chrome ───────────────────────────────────────────────────
-  function F2Chrome({ active, onNav, role, address, isIncognito, onDisconnect, onConnectClick, connected, children }) {
+  function F2Chrome({ active, onNav, role, address, isIncognito, isBadgeholder, onDisconnect, onConnectClick, connected, children }) {
     // Submit tab intentionally omitted — issues are added from inside the
     // vote ("+ Add issue") and that route already pre-targets the current
     // round, so a standalone Submit tab is redundant noise.
     const items = [
       ["rounds",  "Murmurations"],
-      ["ballot",  "My murmur",canVote(role)],
+      ["ballot",  "My murmur",canVote(role, isBadgeholder)],
       ["admin",   "Admin",    canAdmin(role)],
     ].filter(x => x[2] !== false);
     // Đ-flock wallpaper — centroid-based clustering for a real
@@ -1299,7 +1303,7 @@ function _LiveHolders({ token }) {
   }
 
   // ── Rounds list (landing) ────────────────────────────────────────
-  function F2RoundsList({ rounds, role, onOpen, onCreate }) {
+  function F2RoundsList({ rounds, role, isBadgeholder, onOpen, onCreate }) {
     const open = rounds.filter(r => r.status === "open");
     const closed = rounds.filter(r => r.status !== "open");
     return (
@@ -1693,7 +1697,7 @@ function _LiveHolders({ token }) {
     return variants[Math.abs(h) % variants.length];
   }
 
-  function F2RoundDetail({ round, allocations, setAllocations, role, onOpenIssue, onSubmit, onDeleteIssue, onCommit, address }) {
+  function F2RoundDetail({ round, allocations, setAllocations, role, isBadgeholder, onOpenIssue, onSubmit, onDeleteIssue, onCommit, address }) {
     const [_deletingIssueId, _setDeletingIssueId] = useState(null);
     const [_deletingPending, _setDeletingPending] = useState(false);
     const [_committing, _setCommitting] = useState(false);
@@ -1836,7 +1840,7 @@ function _LiveHolders({ token }) {
     }, 0);
     const remaining = round.budget - used;
     const setVal = (id, nv) => {
-      if (!canVote(role)) return;
+      if (!canVote(role, isBadgeholder)) return;
       // Use functional update so we always clamp against the freshest state,
       // not a stale closure during fast slider drags.
       setAllocations(prev => {
@@ -1892,7 +1896,7 @@ function _LiveHolders({ token }) {
               );
             })}
           </div>
-          {canVote(role) ? (
+          {canVote(role, isBadgeholder) ? (
             <div style={{ minHeight: 150, marginTop: 4, display: "flex", flexDirection: "column", justifyContent: "center" }}>
               {!_userBallot ? (
                 <div key="first" style={{ animation: "f2statepop .18s ease-out" }}>
@@ -1987,12 +1991,12 @@ function _LiveHolders({ token }) {
             <div>
               <div className="font-display" style={{ fontSize: 44, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>Directions</div>
             </div>
-            {canSubmit(role) && (
+            {canSubmit(role, isBadgeholder) && (
               <button className="btn btn-ghost" onClick={onSubmit}>+ Add a direction</button>
             )}
           </div>
           <div style={{ background: "rgba(255,60,56,0.10)", border: "1px solid rgba(255,60,56,0.25)", borderLeft: "4px solid var(--dao-red)", borderRadius: 10, padding: "14px 18px", fontSize: 14, color: "var(--text-primary)", marginBottom: 18, lineHeight: 1.55 }}>
-            Don't see the choice you want? {canSubmit(role) ? (
+            Don't see the choice you want? {canSubmit(role, isBadgeholder) ? (
               <a onClick={onSubmit} style={{ color: "var(--dao-red)", fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>create a direction here</a>
             ) : <span style={{ color: "var(--dao-red)", fontWeight: 700 }}>connect an ETHSecurity Badge wallet to add one to the murmuration</span>}.
           </div>
@@ -2048,7 +2052,7 @@ function _LiveHolders({ token }) {
                       onChange={(nv) => setVal(iss.id, nv)}
                       max={sliderMax}
                       scaleMax={round.voting === "quadratic" ? Math.floor(Math.sqrt(round.budget)) : round.budget}
-                      disabled={!canVote(role)}
+                      disabled={!canVote(role, isBadgeholder)}
                       voting={round.voting}
                     />
                     {round.voting === "quadratic" ? (
@@ -2126,7 +2130,7 @@ function _LiveHolders({ token }) {
                       ? Number(((_userBallot.ballot.allocations || []).find((a) => Number(a.issueId) === Number(iss.id)) || {}).points || 0)
                       : 0;
                     const delta = (v || 0) - prev;
-                    const showDelta = canVote(role) && delta !== 0;
+                    const showDelta = canVote(role, isBadgeholder) && delta !== 0;
                     const unit = round.voting === "quadratic" ? "pts" : (Number(total) === 1 ? "vote" : "votes");
                     return (
                       <div style={{
@@ -2190,7 +2194,7 @@ function _LiveHolders({ token }) {
   }
 
   // ── Issue detail ─────────────────────────────────────────────────
-  function F2IssueDetail({ issue, round, allocations, setAllocations, role, onBack }) {
+  function F2IssueDetail({ issue, round, allocations, setAllocations, role, isBadgeholder, onBack }) {
     const v = allocations[issue.id] || 0;
     return (
       <div style={{ padding: "32px 40px", maxWidth: 1100, margin: "0 auto" }}>
@@ -2229,7 +2233,7 @@ function _LiveHolders({ token }) {
                 const nextCost = round.voting === "quadratic" ? (2 * v + 1) : 1;
                 const remaining = budgetForThis - cost;
                 const setSafe = (raw) => {
-                  if (!canVote(role)) return;
+                  if (!canVote(role, isBadgeholder)) return;
                   let next = raw;
                   const nCost = round.voting === "quadratic" ? next * next : next;
                   if (nCost > budgetForThis) next = maxForThis;
@@ -2242,7 +2246,7 @@ function _LiveHolders({ token }) {
                     <div className="font-display" style={{ fontSize: 56, fontWeight: 700, lineHeight: 1, marginTop: 8 }}>{v}<span style={{ fontSize: 20, color: "var(--on-blue-soft)" }}> {round.voting === "quadratic" ? (v === 1 ? "pt" : "pts") : (v === 1 ? "vote" : "votes")}</span></div>
                     <input
                       type="range" min="0" max={Math.max(maxForThis, 1)} value={Math.min(v, Math.max(maxForThis, 0))}
-                      disabled={!canVote(role)}
+                      disabled={!canVote(role, isBadgeholder)}
                       onChange={e => setSafe(Number(e.target.value))}
                       style={{ width: "100%", marginTop: 14, accentColor: "var(--dao-red)" }}
                     />
@@ -2276,7 +2280,7 @@ function _LiveHolders({ token }) {
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: "var(--on-blue-soft)" }}>Murmuration total</span><span className="font-mono">{Number(issue.totalVotes || 0).toLocaleString()}</span></div>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: "var(--on-blue-soft)" }}>Murmurs</span><span className="font-mono">{issue.voters || 0}</span></div>
                     </div>
-                    {!canVote(role) && (
+                    {!canVote(role, isBadgeholder) && (
                       <div style={{ marginTop: 14, fontSize: 11, color: "var(--on-blue-soft)", lineHeight: 1.5 }}>
                         Read-only. Connect an ETHSecurity Badge wallet to murmur.
                       </div>
@@ -2294,7 +2298,7 @@ function _LiveHolders({ token }) {
   // ── Submit issue ─────────────────────────────────────────────────
   // Two modes: "compose" — write directly here.
   //            "import"  — paste a public GitHub issue URL (auto-fetched).
-  function F2Submit({ rounds, setRounds, role, tokens, address, setSaveToast, onSubmitted, preselectRoundId }) {
+  function F2Submit({ rounds, setRounds, role, isBadgeholder, tokens, address, setSaveToast, onSubmitted, preselectRoundId }) {
     const { data: _walletClient } = wagmi.useWalletClient();
     const [_submitting, _setSubmitting] = useState(false);
     const [_importPreview, _setImportPreview] = useState(null);
@@ -2448,7 +2452,7 @@ function _LiveHolders({ token }) {
       !eligibleRounds.find((r) => r.id === preselectRoundId)
     );
 
-    if (!canSubmit(role)) {
+    if (!canSubmit(role, isBadgeholder)) {
       return (
         <div style={{ padding: 80, textAlign: "center" }}>
           <div className="font-display" style={{ fontSize: 32, fontWeight: 700, color: "var(--text-primary)" }}>Only ETHSecurity Badge holders can submit issues</div>
@@ -3327,7 +3331,7 @@ function _LiveHolders({ token }) {
   }
 
   // ── App shell ────────────────────────────────────────────────────
-  function F2App({ role, address, isIncognito, onDisconnect, onConnectClick, tokens, setTokens }) {
+  function F2App({ role, address, isIncognito, isBadgeholder, onDisconnect, onConnectClick, tokens, setTokens }) {
     const [screen, setScreen] = useState("rounds");
     const [_saveToast, _setSaveToast] = useState(null);
     useEffect(() => {
@@ -3452,11 +3456,12 @@ function _LiveHolders({ token }) {
     const round = currentRound ? rounds.find(r => r.id === currentRound) : null;
 
     return (
-      <F2Chrome active={screen === "round" || screen === "issue" ? "rounds" : screen} onNav={nav} role={role} address={address} isIncognito={isIncognito} onDisconnect={onDisconnect} onConnectClick={onConnectClick} connected={!!address}>
+      <F2Chrome active={screen === "round" || screen === "issue" ? "rounds" : screen} onNav={nav} role={role} address={address} isIncognito={isIncognito} isBadgeholder={isBadgeholder} onDisconnect={onDisconnect} onConnectClick={onConnectClick} connected={!!address}>
         {screen === "rounds" && (
           <F2RoundsList
             rounds={rounds}
             role={role}
+            isBadgeholder={isBadgeholder}
             onOpen={(id) => {
               setCurrentRound(id);
               setScreen("round");
@@ -3473,6 +3478,7 @@ function _LiveHolders({ token }) {
             allocations={allocations}
             setAllocations={setAllocations}
             role={role}
+            isBadgeholder={isBadgeholder}
             address={address}
             onOpenIssue={(id) => { setCurrentIssue(id); setScreen("issue"); }}
             onSubmit={() => setScreen("submit")}
@@ -3549,6 +3555,7 @@ function _LiveHolders({ token }) {
             allocations={allocations}
             setAllocations={setAllocations}
             role={role}
+            isBadgeholder={isBadgeholder}
             onBack={() => setScreen("round")}
           />
         )}
@@ -3557,6 +3564,7 @@ function _LiveHolders({ token }) {
             rounds={rounds}
             setRounds={setRounds}
             role={role}
+            isBadgeholder={isBadgeholder}
             tokens={tokens}
             address={address}
             preselectRoundId={currentRound}

@@ -274,6 +274,7 @@ function WalletGate(): React.ReactElement {
           role={role}
           address={address}
           isIncognito={isIncognito}
+          isBadgeholder={isBadgeholder}
           tokens={tokens}
           setTokens={setTokens}
           onDisconnect={fullDisconnect}
