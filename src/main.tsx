@@ -12,6 +12,7 @@ import "@rainbow-me/rainbowkit/styles.css";
 
 import { wagmiConfig } from "./wagmi";
 import { F2App, F2Connect } from "./app.jsx";
+import * as votingApi from "./votingApi";
 import {
   DEFAULT_TOKEN_REGISTRY,
   ERC721_BALANCE_OF_ABI,
@@ -19,6 +20,13 @@ import {
   saveTokenRegistry,
   type RegisteredToken,
 } from "./eligibility";
+
+// Legacy tokenId → {address, chainId} resolution, mirroring the server's
+// KNOWN_ELIGIBILITY_TOKENS. Proposals created the old way carry a tokenId
+// instead of an explicit tokenAddress+tokenChainId.
+const LEGACY_TOKEN_BY_ID: Record<string, { address: `0x${string}`; chainId: number }> = {
+  "tok-buidler": { address: "0x32d664ca9ea4bad60b2b8ed61dec30692df43ac9", chainId: 42161 },
+};
 
 // Hardcoded admin wallets. Lowercased so the comparison against
 // `useAccount().address` is case-insensitive. These ship to prod and
@@ -75,23 +83,53 @@ function WalletGate(): React.ReactElement {
     [],
   );
 
-  // ERC-721 balanceOf reads, parallelized via wagmi's useReadContracts.
-  // Only ERC-721 tokens are checked — ERC-1155 / ERC-20 take a different
-  // balanceOf signature and aren't supported until we add typed readers.
-  const erc721Tokens = React.useMemo(() => tokens.filter((t) => t.kind === "ERC-721"), [tokens]);
+  // Badgeholder status is CONTEXTUAL: a wallet is a badgeholder only if
+  // there is (or was) a vote whose eligibility token it holds. Holding a
+  // badge with no vote that uses it does NOT make you a badgeholder. So
+  // when an admin deletes the only vote that used a given badge, holders
+  // of that badge stop being badgeholders. (Per Zep, 2026-06-03.)
+  //
+  // We fetch the proposal list, collect the DISTINCT eligibility tokens
+  // those proposals require (each as address+chainId, resolving legacy
+  // tokenIds), and check the wallet's balance of each. Eligible for any
+  // one → badgeholder.
+  const [proposals, setProposals] = React.useState<votingApi.Proposal[]>([]);
+  React.useEffect(() => {
+    let cancelled = false;
+    votingApi.fetchProposals()
+      .then((ps) => { if (!cancelled) setProposals(ps); })
+      .catch(() => { if (!cancelled) setProposals([]); });
+    return () => { cancelled = true; };
+  }, [address]);
+
+  // Distinct eligibility tokens required by existing proposals, keyed
+  // "chainId:address" so the same token on the same chain dedupes.
+  const requiredTokens = React.useMemo(() => {
+    const map = new Map<string, { address: `0x${string}`; chainId: number }>();
+    for (const p of proposals) {
+      let addr: string | null | undefined = p.tokenAddress;
+      let chain: number | null | undefined = p.tokenChainId;
+      if ((!addr || !chain) && p.tokenId && LEGACY_TOKEN_BY_ID[p.tokenId]) {
+        addr = LEGACY_TOKEN_BY_ID[p.tokenId].address;
+        chain = LEGACY_TOKEN_BY_ID[p.tokenId].chainId;
+      }
+      if (addr && chain) {
+        map.set(`${chain}:${addr.toLowerCase()}`, { address: addr as `0x${string}`, chainId: Number(chain) });
+      }
+    }
+    return Array.from(map.values());
+  }, [proposals]);
+
+  // balanceOf each required token on its own chain.
   const { data: balances } = useReadContracts({
-    // chainId 42161 (Arbitrum One) — where the BUIDLER badge lives.
-    // Without this wagmi defaults to the wallet's active chain which
-    // is typically mainnet, and balanceOf returns 0 because the
-    // contract doesn't exist there.
-    contracts: erc721Tokens.map((t) => ({
+    contracts: requiredTokens.map((t) => ({
       address: t.address,
       abi: ERC721_BALANCE_OF_ABI,
       functionName: "balanceOf",
       args: address ? [address] : undefined,
-      chainId: 42161,
+      chainId: t.chainId,
     })),
-    query: { enabled: !!address && erc721Tokens.length > 0 },
+    query: { enabled: !!address && requiredTokens.length > 0 },
   });
   const isBadgeholder = React.useMemo(() => {
     if (!balances) return false;
@@ -127,10 +165,11 @@ function WalletGate(): React.ReactElement {
     ],
     query: { enabled: !!address },
   });
-  const isPublicBadgeholder = React.useMemo(() => {
-    const b = mainnetBadgeBalances?.[0];
-    return !!b && b.status === "success" && typeof b.result === "bigint" && b.result > 0n;
-  }, [mainnetBadgeBalances]);
+  // isIncognito drives the spy-starling PFP for private-badge holders.
+  // (The public-badge balance — mainnetBadgeBalances[0] — is no longer
+  // read for role; badgeholder status comes from proposal-required tokens
+  // above. The public badge still grants the role whenever a proposal
+  // actually requires it, via requiredTokens.)
   const isIncognito = React.useMemo(() => {
     const b = mainnetBadgeBalances?.[1];
     return !!b && b.status === "success" && typeof b.result === "bigint" && b.result > 0n;
@@ -139,9 +178,14 @@ function WalletGate(): React.ReactElement {
   const role: "visitor" | "badgeholder" | "admin" = React.useMemo(() => {
     if (!address) return "visitor";
     if (ADMIN_ADDRESSES.has(address.toLowerCase())) return "admin";
-    if (isBadgeholder || isPublicBadgeholder || isIncognito) return "badgeholder";
+    // Badgeholder ONLY if eligible for an existing vote (isBadgeholder is
+    // now computed from proposal-required tokens, above). Holding a badge
+    // with no vote that uses it does not grant the role. isPublicBadgeholder
+    // / isIncognito are intentionally NOT part of this gate anymore — they
+    // only drive the PFP/incognito visual when the wallet IS a badgeholder.
+    if (isBadgeholder) return "badgeholder";
     return "visitor";
-  }, [address, isBadgeholder, isPublicBadgeholder, isIncognito]);
+  }, [address, isBadgeholder]);
 
   const [waitedTooLong, setWaitedTooLong] = React.useState(false);
   React.useEffect(() => {
