@@ -1757,17 +1757,22 @@ function _LiveHolders({ token }) {
         // round.issueIds → cards. Without this the user sees an empty
         // Stances list until they refresh.
         for (const opt of (liveProposal.options || [])) {
-          if (!ISSUES.find((i) => i.id === opt.id)) {
-            ISSUES.push({
-              id: opt.id,
-              title: opt.label,
-              severity: "info",
-              area: "Vote option",
-              body: opt.body || "",
-              githubUrl: opt.github && opt.github.url,
-              githubNumber: opt.github && opt.github.number,
-            });
-          }
+          // UPSERT: option ids are per-proposal (1,2,3…), so this round's
+          // option must OVERWRITE any cached entry with the same id from
+          // another vote — otherwise the other vote's option bleeds into
+          // this round's Directions list.
+          const _existing = ISSUES.find((i) => i.id === opt.id);
+          const _entry = {
+            id: opt.id,
+            title: opt.label,
+            severity: "info",
+            area: "Vote option",
+            body: opt.body || "",
+            githubUrl: opt.github && opt.github.url,
+            githubNumber: opt.github && opt.github.number,
+          };
+          if (_existing) Object.assign(_existing, _entry);
+          else ISSUES.push(_entry);
         }
         // Force a re-render so issues.map() picks up any IDs we just
         // backfilled. ISSUES mutations don't trigger React updates on
@@ -2351,7 +2356,12 @@ function _LiveHolders({ token }) {
       try {
         if (setSaveToast) setSaveToast({ kind: "ok", text: "Sign the issue submission in your wallet…" });
         const { option } = await votingApi.addOption(roundId, _title, _body, _walletClient, address, _githubUrl);
-        ISSUES.push({ id: option.id, title: option.label, severity: severity || "info", area: area || "", body: _body, githubUrl: option.github && option.github.url, githubNumber: option.github && option.github.number });
+        // UPSERT into the per-id global cache — overwrite a same-id entry
+        // from another vote (and avoid duplicate id rows on re-submit).
+        const _newIssue = { id: option.id, title: option.label, severity: severity || "info", area: area || "", body: _body, githubUrl: option.github && option.github.url, githubNumber: option.github && option.github.number };
+        const _existingIssue = ISSUES.find((i) => i.id === option.id);
+        if (_existingIssue) Object.assign(_existingIssue, _newIssue);
+        else ISSUES.push(_newIssue);
         if (setRounds) {
           setRounds((prev) => prev.map((r) => r.id === roundId
             ? { ...r, issueIds: [...(r.issueIds || []), option.id] }
@@ -3355,17 +3365,21 @@ function _LiveHolders({ token }) {
           const newRounds = [];
           for (const p of fetched) {
             for (const opt of (p.options || [])) {
-              if (!ISSUES.find((i) => i.id === opt.id)) {
-                ISSUES.push({
-                  id: opt.id,
-                  title: opt.label,
-                  severity: "info",
-                  area: "Vote option",
-                  body: opt.body || "",
-                  githubUrl: opt.github && opt.github.url,
-                  githubNumber: opt.github && opt.github.number,
-                });
-              }
+              // UPSERT (overwrite same-id entry) — option ids are per-
+              // proposal, so an earlier proposal must not shadow a later
+              // one that reuses the same id.
+              const _existing = ISSUES.find((i) => i.id === opt.id);
+              const _entry = {
+                id: opt.id,
+                title: opt.label,
+                severity: "info",
+                area: "Vote option",
+                body: opt.body || "",
+                githubUrl: opt.github && opt.github.url,
+                githubNumber: opt.github && opt.github.number,
+              };
+              if (_existing) Object.assign(_existing, _entry);
+              else ISSUES.push(_entry);
             }
             const closesMs = new Date(p.deadline).getTime();
             // Default tokenId to the registry's default if the API didn't

@@ -949,11 +949,23 @@ app.post("/api/proposals/:id/vote", async (req, reply) => {
     if (Number(a.points) < 0) return reply.code(400).send({ error: "negative_points" });
   }
 
-  // Eligibility: voter must hold ≥1 BUIDLER badge
+  // Eligibility: voter must hold ≥1 of the proposal's eligibility badge,
+  // on whichever chain the proposal specifies (mainnet for production
+  // badges, Arbitrum for the dev BUIDLER badge). This MUST resolve the
+  // badge from the proposal (same as the issue-submission path) — a
+  // hardcoded BUIDLER/Arbitrum read wrongly rejects genuine holders of
+  // a mainnet badge with not_a_badgeholder.
+  const tokenSpec = resolveEligibilitySpec(proposal);
+  if (!tokenSpec) {
+    return reply.code(403).send({
+      error: "no_known_eligibility_token",
+      detail: "proposal has no usable eligibility token (neither tokenAddress+tokenChainId nor a registered tokenId)",
+    });
+  }
   let badgeBalance;
   try {
-    badgeBalance = await onChainClient.readContract({
-      address: BUIDLER_CONTRACT,
+    badgeBalance = await getChainClient(tokenSpec.chain).readContract({
+      address: tokenSpec.address,
       abi: ERC721_BALANCE_OF_ABI,
       functionName: "balanceOf",
       args: [voterAddr],
