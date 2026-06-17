@@ -732,7 +732,7 @@ function _LiveHolders({ token }) {
   const canAdmin  = (r) => r === "admin";
 
   // ── Top chrome ───────────────────────────────────────────────────
-  function F2Chrome({ active, onNav, role, address, isIncognito, isBadgeholder, onDisconnect, onConnectClick, connected, children }) {
+  function F2Chrome({ active, onNav, role, address, isIncognito, isPublicBadgeholder, isBadgeholder, onDisconnect, onConnectClick, connected, children }) {
     // Submit tab intentionally omitted — issues are added from inside the
     // vote ("+ Add issue") and that route already pre-targets the current
     // round, so a standalone Submit tab is redundant noise.
@@ -873,6 +873,16 @@ function _LiveHolders({ token }) {
             ))}
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            {connected && (isIncognito || isPublicBadgeholder) && (
+              <span className="font-display" title="Which ETHSecurity identity this wallet is connected as" style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                fontSize: 12, fontWeight: 700, padding: "5px 11px", borderRadius: 999,
+                background: "var(--surface-pop)", border: "1px solid var(--stroke-line-2)", color: "var(--text-primary)",
+              }}>
+                <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>Connected as</span>
+                {isIncognito ? "🕵️ Incognito Badge" : "🐦 Public Badge"}
+              </span>
+            )}
             {connected && (role === "badgeholder" || role === "admin")
               ? <BadgePfp address={address} role={role} isIncognito={isIncognito} />
               : <RoleChip role={role} />}
@@ -1376,6 +1386,11 @@ function _LiveHolders({ token }) {
       blue: "var(--dao-blue-700)",
     };
     const accent = accentMap[r.accent] || "var(--dao-red)";
+    // Public / private badge label — shown when the round's eligibility
+    // token is one of the two mainnet ETHSecurity badges. (Per Zep 2026-06-17.)
+    const _ra = String(r.tokenAddress || "").toLowerCase();
+    const _isPublicRound = _ra === "0xf67c0ade41c607efebf198f9d6065ab1ec5ad4cd";
+    const _isPrivateRound = _ra === "0x3b49f45ec8796f64febb1ae0f5661791845ce35c";
     return (
       <div onClick={onOpen} style={{
         // Muted (past) votes use the deeper recessed surface instead of
@@ -1401,6 +1416,8 @@ function _LiveHolders({ token }) {
               background: r.status === "open" ? "rgba(92,183,90,0.16)" : "rgba(255,255,255,0.08)",
               color: r.status === "open" ? "var(--dao-green)" : "var(--text-muted)",
             }}>● {r.status}</span>
+            {_isPublicRound && <span className="font-mono" style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 9px", borderRadius: 4, background: "rgba(225,175,55,0.18)", color: "rgb(245,210,110)" }}>🐦 Public Badge</span>}
+            {_isPrivateRound && <span className="font-mono" style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 9px", borderRadius: 4, background: "rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.85)" }}>🕵️ Incognito Badge</span>}
             {r.rolling && <span className="font-mono" style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 9px", borderRadius: 4, background: "rgba(108,162,204,0.18)", color: "rgb(180,220,255)" }}>Always open</span>}
           </div>
           <span className="font-mono" style={{ fontSize: 12, color: "var(--text-muted)", letterSpacing: "0.04em" }}>{r.voters} voted</span>
@@ -1697,7 +1714,34 @@ function _LiveHolders({ token }) {
     return variants[Math.abs(h) % variants.length];
   }
 
-  function F2RoundDetail({ round, allocations, setAllocations, role, isBadgeholder, onOpenIssue, onSubmit, onDeleteIssue, onCommit, address }) {
+  function F2RoundDetail({ round, allocations, setAllocations, role, isBadgeholder, isIncognito, isPublicBadgeholder, tokens, onConnectClick, onDisconnect, onOpenIssue, onSubmit, onDeleteIssue, onCommit, address }) {
+    // ── Per-round eligibility (public vs private ETHSecurity badge) ──
+    // isBadgeholder / canVote are GLOBAL: true if the wallet is eligible for
+    // ANY round. That let a private-badge holder see an enabled vote button
+    // on a public round and only hit "not_a_badgeholder" after signing. For
+    // the two mainnet ETHSecurity badges we can tell per-round eligibility
+    // directly from the wallet's public/private balances, and tell the user
+    // exactly which address to connect.
+    const _PUBLIC_BADGE = "0xf67c0ade41c607efebf198f9d6065ab1ec5ad4cd";
+    const _PRIVATE_BADGE = "0x3b49f45ec8796f64febb1ae0f5661791845ce35c";
+    const _roundTok = (tokens || []).find((t) => t.id === round.tokenId);
+    // Prefer the proposal's server-stored tokenAddress (works in any
+    // browser); fall back to the client token registry for seed/in-session
+    // rounds that don't carry one.
+    const _roundAddr = String(round.tokenAddress || (_roundTok && _roundTok.address) || "").toLowerCase();
+    const _needsPublic = _roundAddr === _PUBLIC_BADGE;
+    const _needsPrivate = _roundAddr === _PRIVATE_BADGE;
+    const _knowsPerRound = _needsPublic || _needsPrivate;
+    const _holdsRoundBadge = _needsPublic ? !!isPublicBadgeholder : (_needsPrivate ? !!isIncognito : false);
+    // Admins and non-public/private tokens keep the existing global check.
+    const _canVoteHere = (_knowsPerRound && role !== "admin") ? _holdsRoundBadge : canVote(role, isBadgeholder);
+    const _canSubmitHere = (_knowsPerRound && role !== "admin") ? _holdsRoundBadge : canSubmit(role, isBadgeholder);
+    // Show the "wrong identity — connect your public/incognito address" hint
+    // ONLY to wallets that actually hold one of the two ETHSecurity badges
+    // (a real holder who connected the wrong one of their two wallets). Plain
+    // visitors with no badge don't need the public/private detail — they keep
+    // the original generic "connect a badge wallet" copy. (Per Zep 2026-06-17.)
+    const _showIdentityHint = _knowsPerRound && (isPublicBadgeholder || isIncognito);
     const [_deletingIssueId, _setDeletingIssueId] = useState(null);
     const [_deletingPending, _setDeletingPending] = useState(false);
     const [_committing, _setCommitting] = useState(false);
@@ -1845,7 +1889,7 @@ function _LiveHolders({ token }) {
     }, 0);
     const remaining = round.budget - used;
     const setVal = (id, nv) => {
-      if (!canVote(role, isBadgeholder)) return;
+      if (!_canVoteHere) return;
       // Use functional update so we always clamp against the freshest state,
       // not a stale closure during fast slider drags.
       setAllocations(prev => {
@@ -1901,7 +1945,7 @@ function _LiveHolders({ token }) {
               );
             })}
           </div>
-          {canVote(role, isBadgeholder) ? (
+          {_canVoteHere ? (
             <div style={{ minHeight: 150, marginTop: 4, display: "flex", flexDirection: "column", justifyContent: "center" }}>
               {!_userBallot ? (
                 <div key="first" style={{ animation: "f2statepop .18s ease-out" }}>
@@ -1983,6 +2027,22 @@ function _LiveHolders({ token }) {
                 </div>
               )}
               </div>
+          ) : _showIdentityHint ? (
+            <div style={{ marginTop: 20, borderRadius: 12, padding: "16px 18px",
+              background: "linear-gradient(135deg, rgba(255,60,56,0.20), rgba(255,60,56,0.10)), var(--surface-card)",
+              border: "1px solid rgba(255,60,56,0.55)", borderLeft: "4px solid var(--dao-red)" }}>
+              <div className="font-display" style={{ fontSize: 16, fontWeight: 800, color: "#ffb4b4", letterSpacing: "-0.01em" }}>⛔ Not eligible to vote</div>
+              <div className="font-body" style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 8, lineHeight: 1.5 }}>
+                {_needsPublic ? (
+                  <>This is a <b style={{ color: "var(--text-primary)" }}>public vote</b>. {isIncognito ? "You're connected with your incognito address (🕵️), which doesn't hold the public badge. " : "This wallet doesn't hold the public badge. "}Connect your <b style={{ color: "var(--text-primary)" }}>public badgeholder address</b> to vote here.</>
+                ) : (
+                  <>This is an <b style={{ color: "var(--text-primary)" }}>incognito vote</b>. {isPublicBadgeholder ? "You're connected with your public address (🐦), which doesn't hold the incognito badge. " : "This wallet doesn't hold the incognito badge. "}Connect your <b style={{ color: "var(--text-primary)" }}>incognito address</b> to vote anonymously here.</>
+                )}
+              </div>
+              {onDisconnect && (
+                <button className="btn btn-primary" style={{ marginTop: 13, width: "100%", justifyContent: "center" }} onClick={onDisconnect}>Switch wallet →</button>
+              )}
+            </div>
           ) : (
             <div style={{ marginTop: 20, padding: 14, background: "var(--dao-paper-2)", borderRadius: 10, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.55 }}>
               <b style={{ color: "var(--text-primary)" }}>Read-only.</b> Connect an ETHSecurity Badge wallet to allocate.
@@ -1996,13 +2056,17 @@ function _LiveHolders({ token }) {
             <div>
               <div className="font-display" style={{ fontSize: 44, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>Directions</div>
             </div>
-            {canSubmit(role, isBadgeholder) && (
+            {_canSubmitHere && (
               <button className="btn btn-ghost" onClick={onSubmit}>+ Add a direction</button>
             )}
           </div>
           <div style={{ background: "rgba(255,60,56,0.10)", border: "1px solid rgba(255,60,56,0.25)", borderLeft: "4px solid var(--dao-red)", borderRadius: 10, padding: "14px 18px", fontSize: 14, color: "var(--text-primary)", marginBottom: 18, lineHeight: 1.55 }}>
-            Don't see the choice you want? {canSubmit(role, isBadgeholder) ? (
+            Don't see the choice you want? {_canSubmitHere ? (
               <a onClick={onSubmit} style={{ color: "var(--dao-red)", fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>create a direction here</a>
+            ) : _showIdentityHint ? (
+              _needsPublic
+                ? <span style={{ color: "var(--dao-red)", fontWeight: 700 }}>connect your public badgeholder address first. This round needs the public badge</span>
+                : <span style={{ color: "var(--dao-red)", fontWeight: 700 }}>connect your incognito address first. This round needs the incognito badge</span>
             ) : <span style={{ color: "var(--dao-red)", fontWeight: 700 }}>connect an ETHSecurity Badge wallet to add one to the murmuration</span>}.
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -3341,7 +3405,7 @@ function _LiveHolders({ token }) {
   }
 
   // ── App shell ────────────────────────────────────────────────────
-  function F2App({ role, address, isIncognito, isBadgeholder, onDisconnect, onConnectClick, tokens, setTokens }) {
+  function F2App({ role, address, isIncognito, isPublicBadgeholder, isBadgeholder, onDisconnect, onConnectClick, tokens, setTokens }) {
     const [screen, setScreen] = useState("rounds");
     const [_saveToast, _setSaveToast] = useState(null);
     useEffect(() => {
@@ -3403,6 +3467,12 @@ function _LiveHolders({ token }) {
               voters: 0,
               issueIds: (p.options || []).map((o) => o.id),
               tokenId: p.tokenId || _defaultTokId,
+              // Carry the proposal's stored eligibility token address so
+              // per-round public/private detection works in ANY browser —
+              // the client token registry only holds what THIS browser's
+              // admin added, but tokenAddress is stored server-side.
+              tokenAddress: p.tokenAddress || null,
+              tokenChainId: p.tokenChainId || null,
               accent: "red",
             });
           }
@@ -3470,7 +3540,7 @@ function _LiveHolders({ token }) {
     const round = currentRound ? rounds.find(r => r.id === currentRound) : null;
 
     return (
-      <F2Chrome active={screen === "round" || screen === "issue" ? "rounds" : screen} onNav={nav} role={role} address={address} isIncognito={isIncognito} isBadgeholder={isBadgeholder} onDisconnect={onDisconnect} onConnectClick={onConnectClick} connected={!!address}>
+      <F2Chrome active={screen === "round" || screen === "issue" ? "rounds" : screen} onNav={nav} role={role} address={address} isIncognito={isIncognito} isPublicBadgeholder={isPublicBadgeholder} isBadgeholder={isBadgeholder} onDisconnect={onDisconnect} onConnectClick={onConnectClick} connected={!!address}>
         {screen === "rounds" && (
           <F2RoundsList
             rounds={rounds}
@@ -3493,7 +3563,12 @@ function _LiveHolders({ token }) {
             setAllocations={setAllocations}
             role={role}
             isBadgeholder={isBadgeholder}
+            isIncognito={isIncognito}
+            isPublicBadgeholder={isPublicBadgeholder}
+            tokens={tokens}
             address={address}
+            onConnectClick={onConnectClick}
+            onDisconnect={onDisconnect}
             onOpenIssue={(id) => { setCurrentIssue(id); setScreen("issue"); }}
             onSubmit={() => setScreen("submit")}
             onCommit={async (r) => {
