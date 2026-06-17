@@ -174,6 +174,15 @@ function WalletGate(): React.ReactElement {
     const b = mainnetBadgeBalances?.[1];
     return !!b && b.status === "success" && typeof b.result === "bigint" && b.result > 0n;
   }, [mainnetBadgeBalances]);
+  // isPublicBadgeholder = holds the public ETHSecurity badge (mainnet
+  // balance[0]). Used by the app to tell, per-round, whether the connected
+  // wallet can act on a PUBLIC-badge-gated round and to label the connected
+  // identity (🐦 Public vs 🕵️ Incognito). NOT part of the role gate — role
+  // still comes from proposal-required tokens above.
+  const isPublicBadgeholder = React.useMemo(() => {
+    const b = mainnetBadgeBalances?.[0];
+    return !!b && b.status === "success" && typeof b.result === "bigint" && b.result > 0n;
+  }, [mainnetBadgeBalances]);
 
   const role: "visitor" | "badgeholder" | "admin" = React.useMemo(() => {
     if (!address) return "visitor";
@@ -274,6 +283,7 @@ function WalletGate(): React.ReactElement {
           role={role}
           address={address}
           isIncognito={isIncognito}
+          isPublicBadgeholder={isPublicBadgeholder}
           isBadgeholder={isBadgeholder}
           tokens={tokens}
           setTokens={setTokens}
