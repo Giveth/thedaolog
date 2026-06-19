@@ -2056,9 +2056,6 @@ function _LiveHolders({ token }) {
             <div>
               <div className="font-display" style={{ fontSize: 44, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>Directions</div>
             </div>
-            {_canSubmitHere && (
-              <button className="btn btn-ghost" onClick={onSubmit}>+ Add a direction</button>
-            )}
           </div>
           <div style={{ background: "rgba(255,60,56,0.10)", border: "1px solid rgba(255,60,56,0.25)", borderLeft: "4px solid var(--dao-red)", borderRadius: 10, padding: "14px 18px", fontSize: 14, color: "var(--text-primary)", marginBottom: 18, lineHeight: 1.55 }}>
             Don't see the choice you want? {_canSubmitHere ? (
@@ -2256,6 +2253,9 @@ function _LiveHolders({ token }) {
               );
             })}
           </div>
+          {_canSubmitHere && (
+            <button className="btn btn-primary btn-lg" onClick={onSubmit} style={{ width: "100%", justifyContent: "center", marginTop: 12 }}>+ Add a direction</button>
+          )}
           <_VerifyPanel round={round} />
         </div>
       </div>
