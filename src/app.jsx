@@ -2096,9 +2096,16 @@ function _LiveHolders({ token }) {
           <div style={{ marginTop: 24, display: "flex", justifyContent: "center" }}>
             <DonutBudget used={used} total={round.budget} label={round.voting === "quadratic" ? "credits" : "votes"} />
           </div>
-          <div style={{ marginTop: 20, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <span className="font-mono" style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text-muted)" }}>Your allocations</span>
-            <span className="font-mono" style={{ fontSize: 11, letterSpacing: "0.04em", color: "var(--text-secondary)" }}>{used} of {round.budget} {round.voting === "quadratic" ? "credits" : "votes"} used</span>
+          <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--stroke-line)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span className="font-display" style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.03em", textTransform: "uppercase", color: "var(--text-primary)" }}>Your allocations</span>
+              <span className="font-mono" style={{ fontSize: 15, fontWeight: 600, color: "var(--dao-red)" }}>{used} / {round.budget} used</span>
+            </div>
+            {remaining <= 0 ? (
+              <div className="font-body" style={{ marginTop: 7, fontSize: 12.5, fontWeight: 600, color: "var(--dao-green)" }}>✓ Budget fully allocated</div>
+            ) : (
+              <div className="font-body" style={{ marginTop: 7, fontSize: 12.5, fontWeight: 600, color: "rgb(224,168,60)" }}>{remaining} {round.voting === "quadratic" ? "credits" : "votes"} left to allocate</div>
+            )}
           </div>
           <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 2, maxHeight: 220, overflowY: "auto" }}>
             {Object.entries(allocations).filter(([k, v]) => v > 0 && round.issueIds.includes(Number(k))).map(([id, v]) => {
