@@ -727,8 +727,17 @@ function _LiveHolders({ token }) {
   // admin role. An admin who doesn't hold the NFT can't vote (per Zep
   // 2026-06-03). holdsBadge = WalletGate's isBadgeholder. Back-compat: if
   // undefined, fall back to role so older call sites don't break.
-  const canVote   = (r, holdsBadge) => holdsBadge !== undefined ? !!holdsBadge : (r === "badgeholder");
-  const canSubmit = (r, holdsBadge) => holdsBadge !== undefined ? !!holdsBadge : (r === "badgeholder");
+  //
+  // _DEV is true only on the Vite dev server (staging at localhost:7100) and
+  // false in the prod `vite build` (murmur.thedao.fund), where every branch
+  // guarded by it is dead-code-eliminated. Staging-only test affordances hang
+  // off it so they can never reach prod. Added 2026-06-22 per Zep so he can
+  // test the voter flow without holding each round's badge.
+  const _DEV = import.meta.env.DEV;
+  // Staging only: the admin can vote/submit on every round. Prod keeps the
+  // strict "must hold the badge" gate from 2026-06-03.
+  const canVote   = (r, holdsBadge) => (_DEV && r === "admin") ? true : (holdsBadge !== undefined ? !!holdsBadge : (r === "badgeholder"));
+  const canSubmit = (r, holdsBadge) => (_DEV && r === "admin") ? true : (holdsBadge !== undefined ? !!holdsBadge : (r === "badgeholder"));
   const canAdmin  = (r) => r === "admin";
 
   // Injects a "Copy connection link" button INTO RainbowKit's WalletConnect
@@ -1007,6 +1016,16 @@ function _LiveHolders({ token }) {
     // FNV-1a hash fallback was removed 2026-06-03 (per Zep) because it
     // handed non-holders a real holder's PFP via hash collision.
     if (_pfpMapping && _pfpMapping[lower]) return _pfpMapping[lower];
+    // Staging only (Zep 2026-06-22): give non-holders (admins, mock test
+    // wallets) a deterministic "random" public bird, stable per wallet and
+    // distinct across mock wallets, so the voter UI can be tested with a real
+    // PFP. NEVER on prod, where a non-holder must not borrow a real holder's
+    // identity (that is why the FNV-1a fallback was removed 2026-06-03).
+    if (_DEV) {
+      let h = 0;
+      for (let i = 0; i < lower.length; i++) h = (h * 31 + lower.charCodeAt(i)) >>> 0;
+      return (h % 200) + 1;
+    }
     return null;
   }
   function _pfpPath(n) {
@@ -1386,8 +1405,11 @@ function _LiveHolders({ token }) {
 
   // ── Rounds list (landing) ────────────────────────────────────────
   function F2RoundsList({ rounds, role, isBadgeholder, onOpen, onCreate }) {
-    const open = rounds.filter(r => r.status === "open");
-    const closed = rounds.filter(r => r.status !== "open");
+    // Three groups: active (live now), upcoming (scheduled, opens in the
+    // future), past (closed). Added 2026-06-22 per Zep — scheduled votes.
+    const upcoming = rounds.filter(r => _isUpcomingRound(r));
+    const closed = rounds.filter(r => !_isUpcomingRound(r) && _isPastRound(r));
+    const open = rounds.filter(r => !_isUpcomingRound(r) && !_isPastRound(r) && r.status === "open");
     return (
       <div style={{ padding: "40px 40px 80px", maxWidth: 1280, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 28 }}>
@@ -1403,12 +1425,15 @@ function _LiveHolders({ token }) {
           )}
         </div>
 
-        {open.length > 0 ? (
+        {/* ── ACTIVE (live now) ── */}
+        {open.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 18 }}>
             {open.map(r => <RoundCard key={r.id} r={r} onOpen={() => onOpen(r.id)} />)}
           </div>
-        ) : closed.length === 0 ? (
-          // Totally empty — first-load / quiet period. Mascot says hi.
+        )}
+
+        {/* Nothing anywhere — first-load / quiet period. Mascot says hi. */}
+        {open.length === 0 && upcoming.length === 0 && closed.length === 0 && (
           <div style={{ textAlign: "center", padding: "32px 20px 16px" }}>
             <img
               src="/assets/murmuration-starling.png"
@@ -1422,8 +1447,10 @@ function _LiveHolders({ token }) {
               No votes are open right now. Check back when an admin publishes one{canAdmin(role) ? ", or start one yourself" : ""}.
             </div>
           </div>
-        ) : (
-          // Past votes exist but nothing currently open — show a small note above the past section.
+        )}
+
+        {/* No active vote, but scheduled/past ones exist — small note. */}
+        {open.length === 0 && (upcoming.length > 0 || closed.length > 0) && (
           <div style={{ padding: "20px 24px", background: "var(--dao-paper-2)", border: "1px dashed var(--dao-stroke-2)", borderRadius: 12, display: "flex", alignItems: "center", gap: 16 }}>
             <img
               src="/assets/murmuration-starling.png"
@@ -1431,14 +1458,28 @@ function _LiveHolders({ token }) {
               style={{ width: 72, height: "auto", opacity: 0.9, userSelect: "none", pointerEvents: "none", flexShrink: 0 }}
             />
             <div>
-              <div className="font-display" style={{ fontSize: 17, fontWeight: 700, color: "var(--text-primary)" }}>The flock is resting</div>
+              <div className="font-display" style={{ fontSize: 17, fontWeight: 700, color: "var(--text-primary)" }}>No active votes right now</div>
               <div className="font-body" style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
-                No active votes.
+                {upcoming.length > 0 ? "Scheduled votes are listed below." : "See past votes below."}
               </div>
             </div>
           </div>
         )}
 
+        {/* ── UPCOMING (scheduled) ── */}
+        {upcoming.length > 0 && (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 56, marginBottom: 16 }}>
+              <span className="font-display" style={{ fontSize: 28, fontWeight: 700, color: "var(--text-primary)" }}>Upcoming</span>
+              <span className="font-mono" style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--dao-gold-300)", padding: "4px 11px", borderRadius: 999, background: "rgba(245,210,110,0.14)", border: "1px solid rgba(245,210,110,0.30)" }}>🕒 Scheduled</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 18 }}>
+              {upcoming.map(r => <RoundCard key={r.id} r={r} onOpen={() => onOpen(r.id)} upcoming />)}
+            </div>
+          </>
+        )}
+
+        {/* ── PAST (closed) ── */}
         {closed.length > 0 && (
           <>
             <div className="font-display" style={{ fontSize: 28, fontWeight: 700, color: "var(--text-primary)", marginTop: 56, marginBottom: 16 }}>Past votes</div>
@@ -1451,7 +1492,7 @@ function _LiveHolders({ token }) {
     );
   }
 
-  function RoundCard({ r, onOpen, muted }) {
+  function RoundCard({ r, onOpen, muted, upcoming }) {
     const accentMap = {
       red:  "var(--dao-red)",
       gold: "rgb(218,165,32)",
@@ -1463,6 +1504,7 @@ function _LiveHolders({ token }) {
     const _ra = String(r.tokenAddress || "").toLowerCase();
     const _isPublicRound = _ra === "0xf67c0ade41c607efebf198f9d6065ab1ec5ad4cd";
     const _isPrivateRound = _ra === "0x3b49f45ec8796f64febb1ae0f5661791845ce35c";
+    const _past = !upcoming && _isPastRound(r);
     return (
       <div onClick={onOpen} style={{
         // Muted (past) votes use the deeper recessed surface instead of
@@ -1485,9 +1527,9 @@ function _LiveHolders({ token }) {
             <span className="font-mono" style={{
               fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
               padding: "4px 9px", borderRadius: 4,
-              background: r.status === "open" ? "rgba(92,183,90,0.16)" : "rgba(255,255,255,0.08)",
-              color: r.status === "open" ? "var(--dao-green)" : "var(--text-muted)",
-            }}>● {r.status}</span>
+              background: upcoming ? "rgba(245,210,110,0.14)" : (_past ? "rgba(255,255,255,0.08)" : "rgba(92,183,90,0.16)"),
+              color: upcoming ? "var(--dao-gold-300)" : (_past ? "var(--text-muted)" : "var(--dao-green)"),
+            }}>{upcoming ? "🕒 Upcoming" : (_past ? "● closed" : "● open")}</span>
             {_isPublicRound && <span className="font-mono" style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 9px", borderRadius: 4, background: "rgba(225,175,55,0.18)", color: "rgb(245,210,110)" }}>🐦 Public Badge</span>}
             {_isPrivateRound && <span className="font-mono" style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 9px", borderRadius: 4, background: "rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.85)" }}>🕵️ Incognito Badge</span>}
             {r.rolling && <span className="font-mono" style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 9px", borderRadius: 4, background: "rgba(108,162,204,0.18)", color: "rgb(180,220,255)" }}>Always open</span>}
@@ -1500,7 +1542,9 @@ function _LiveHolders({ token }) {
           <Stat label="Voting" value={r.voting === "quadratic" ? "Quadratic" : "Token-weight"} />
           <Stat label="Budget" value={`${r.budget} ${r.voting === "quadratic" ? "pts" : "votes"}`} />
           <Stat label="Directions" value={r.issueIds.length} />
-          <Stat label={r.rolling ? "Status" : "Closes"} value={r.rolling ? "Always open" : (_prettyLocalClose(r.closes) || "—")} />
+          {upcoming
+            ? <Stat label="Opens" value={_prettyLocalClose(r.opens) || "—"} />
+            : <Stat label={r.rolling ? "Status" : (_past ? "Closed" : "Closes")} value={r.rolling ? "Always open" : (_prettyLocalClose(r.closes) || "—")} />}
         </div>
       </div>
     );
@@ -1516,6 +1560,36 @@ function _LiveHolders({ token }) {
   }
 
   // ── Donut for budget visualization ──────────────────────────────
+  // Voting-mode badge for the vote sidebar. A bold pill (so the mode is never
+  // missed) plus a "?" that toggles a plain-language explainer. Copy carries
+  // no dashes (Zep 2026-06-22: dashes read as AI on murmurations).
+  function VotingModeBadge({ voting }) {
+    const [open, setOpen] = useState(false);
+    const isQv = voting === "quadratic";
+    const pillBg = isQv ? "rgba(255,60,56,0.18)" : "rgba(108,162,204,0.20)";
+    const pillFg = isQv ? "#ff8a87" : "#9ec8ec";
+    const pillBd = isQv ? "rgba(255,60,56,0.40)" : "rgba(108,162,204,0.40)";
+    const label = isQv ? "Quadratic Voting" : "Token-Weighted";
+    const tipTitle = isQv ? "How quadratic voting works" : "How token weighting works";
+    const tipBody = isQv
+      ? "Each extra point on one option costs more. The cost is points squared, so 1 point is 1 credit, 2 points is 4, 3 points is 9. Spreading your credits across several options gives you more total say than putting everything on one."
+      : "Every credit is one vote. One vote always costs one credit, so just split your votes across the options however you like.";
+    return (
+      <div style={{ position: "relative", marginTop: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="font-body" style={{ display: "inline-flex", alignItems: "center", padding: "5px 12px", borderRadius: 999, fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", background: pillBg, color: pillFg, border: `1px solid ${pillBd}` }}>{label}</span>
+          <button type="button" onClick={() => setOpen(o => !o)} title="How this works" style={{ width: 18, height: 18, borderRadius: "50%", border: `1px solid ${open ? pillFg : "var(--text-faint)"}`, color: open ? pillFg : "var(--text-faint)", background: "transparent", fontSize: 11, lineHeight: 1, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}>?</button>
+        </div>
+        {open && (
+          <div style={{ marginTop: 10, background: "var(--surface-elevated)", border: "1px solid var(--stroke-line-2)", borderRadius: 12, padding: "12px 14px", boxShadow: "var(--shadow-deep)" }}>
+            <div className="font-display" style={{ fontSize: 12, fontWeight: 700, color: pillFg, textTransform: "uppercase", letterSpacing: "0.06em" }}>{tipTitle}</div>
+            <div className="font-body" style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 6, lineHeight: 1.5 }}>{tipBody}</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function DonutBudget({ used, total, label }) {
     const r = 78, c = 2 * Math.PI * r;
     const pct = Math.min(used / total, 1);
@@ -1528,8 +1602,8 @@ function _LiveHolders({ token }) {
             transform="rotate(-90 100 100)" strokeLinecap="round" style={{ transition: "stroke-dashoffset .25s" }} />
         </svg>
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-          <div className="font-display" style={{ fontSize: 48, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1 }}>{used}</div>
-          <div className="font-mono" style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)", marginTop: 4 }}>of {total} {label}</div>
+          <div className="font-display" style={{ fontSize: 52, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1 }}>{Math.max(0, total - used)}</div>
+          <div className="font-mono" style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)", marginTop: 4 }}>{label} left</div>
         </div>
       </div>
     );
@@ -1987,32 +2061,63 @@ function _LiveHolders({ token }) {
       });
     };
 
+    // Scheduled vote that hasn't opened yet — show an "opens on" screen
+    // instead of the voting UI. (Bug fix 2026-06-22 per Zep: future-dated
+    // votes were castable before their start.)
+    if (_isUpcomingRound(round)) {
+      return (
+        <div style={{ padding: "48px 40px 80px", maxWidth: 760, margin: "0 auto", textAlign: "center" }}>
+          <span className="font-mono" style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--dao-gold-300)", padding: "5px 12px", borderRadius: 999, background: "rgba(245,210,110,0.14)", border: "1px solid rgba(245,210,110,0.30)" }}>🕒 Upcoming</span>
+          <div className="font-display" style={{ fontSize: 40, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-0.02em", marginTop: 18, lineHeight: 1.1 }}>{round.title}</div>
+          {round.blurb && <div className="font-body" style={{ fontSize: 15, color: "var(--text-muted)", marginTop: 10, lineHeight: 1.6 }}>{round.blurb}</div>}
+          <div style={{ marginTop: 28, padding: "22px 26px", background: "var(--surface-elevated)", border: "1px solid var(--stroke-line-2)", borderRadius: 14, display: "inline-block" }}>
+            <div className="font-mono" style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>Voting opens</div>
+            <div className="font-display" style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", marginTop: 6 }}>{_prettyLocalClose(round.opens) || "—"}</div>
+          </div>
+          <div className="font-body" style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 22, lineHeight: 1.6 }}>
+            This murmuration is scheduled. You'll be able to cast your vote once it opens.
+            {(round.issueIds && round.issueIds.length > 0) ? ` ${round.issueIds.length} direction${round.issueIds.length === 1 ? "" : "s"} so far.` : ""}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 32, padding: "32px 40px", maxWidth: 1400, margin: "0 auto" }}>
         {/* sidebar */}
         <div style={{ position: "sticky", top: 88, alignSelf: "start" }}>
           <div className="font-mono" style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>Your murmur</div>
           <div className="font-display" style={{ fontSize: 24, fontWeight: 700, color: "var(--text-primary)", marginTop: 4, lineHeight: 1.2 }}>{round.title}</div>
-          <div className="font-body" style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>
-            {round.voting === "quadratic" ? "Quadratic vote · Every extra point costs more" : "Token-weight vote · 1 vote = 1 credit"}
+          <VotingModeBadge voting={round.voting} />
+          <div className="font-body" style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>
+            {round.voting === "quadratic" ? "Every extra point costs more" : "1 vote = 1 credit"}
             {round.rolling ? " · Always open" : ` · Closes ${_prettyLocalClose(round.closes) || ""}`}
           </div>
           <div style={{ marginTop: 24, display: "flex", justifyContent: "center" }}>
             <DonutBudget used={used} total={round.budget} label={round.voting === "quadratic" ? "credits" : "votes"} />
           </div>
-          <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 8, maxHeight: 200, overflowY: "auto" }}>
+          <div style={{ marginTop: 20, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <span className="font-mono" style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text-muted)" }}>Your allocations</span>
+            <span className="font-mono" style={{ fontSize: 11, letterSpacing: "0.04em", color: "var(--text-secondary)" }}>{used} of {round.budget} {round.voting === "quadratic" ? "credits" : "votes"} used</span>
+          </div>
+          <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 2, maxHeight: 220, overflowY: "auto" }}>
             {Object.entries(allocations).filter(([k, v]) => v > 0 && round.issueIds.includes(Number(k))).map(([id, v]) => {
               const iss = ISSUES.find(x => x.id === Number(id));
               if (!iss) return null;
+              const _rowCost = round.voting === "quadratic" ? v * v : v;
+              const _unit = round.voting === "quadratic" ? (v === 1 ? "pt" : "pts") : (v === 1 ? "vote" : "votes");
               return (
-                <div key={id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                <div key={id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, padding: "7px 6px 7px 9px", borderRadius: 8, borderLeft: "3px solid var(--dao-red)", background: "rgba(255,60,56,0.06)" }}>
                   <img
                     src={"/assets/murmuration-coin-" + _coinFor(iss.id, (round.issueIds || []).indexOf(iss.id)) + ".png"}
                     alt=""
-                    style={{ width: 18, height: 18, flexShrink: 0, userSelect: "none", pointerEvents: "none" }}
+                    style={{ width: 26, height: 26, flexShrink: 0, userSelect: "none", pointerEvents: "none" }}
                   />
                   <span className="font-body" style={{ flex: 1, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{iss.title}</span>
-                  <span className="font-mono" style={{ fontWeight: 600, color: "var(--dao-red-dim)" }}>{v}</span>
+                  <span style={{ textAlign: "right", lineHeight: 1.3 }}>
+                    <span className="font-mono" style={{ display: "block", fontWeight: 600, color: "var(--text-primary)" }}>{v} {_unit}</span>
+                    {round.voting === "quadratic" && <span className="font-mono" style={{ display: "block", fontSize: 10, color: "var(--dao-red-dim)" }}>{_rowCost} cr</span>}
+                  </span>
                 </div>
               );
             })}
@@ -2160,16 +2265,6 @@ function _LiveHolders({ token }) {
                   alignItems: "stretch",
                   position: "relative",
                   transition: "transform .15s, box-shadow .15s, border-color .15s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-1px)";
-                  e.currentTarget.style.boxShadow = v > 0
-                    ? "0 14px 36px rgba(255,60,56,0.16)"
-                    : "0 10px 28px rgba(0,0,0,0.25)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "";
-                  e.currentTarget.style.boxShadow = v > 0 ? "0 8px 24px rgba(255,60,56,0.08)" : "none";
                 }}>
                   <div onClick={() => onOpenIssue(iss.id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 16 }}>
                     {/* Stable per-option coin badge — cycles 1..5 by the option's
@@ -2324,10 +2419,22 @@ function _LiveHolders({ token }) {
                 </div>
               );
             })}
+            {/* Add-a-direction rendered as the last card in the list, styled
+                like the option cards (Zep 2026-06-22): a dashed "+" where the
+                coin sits + label, clickable to open the propose screen. */}
+            {_canSubmitHere && (
+              <div onClick={onSubmit} role="button" title="Propose a new direction"
+                onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 14px 36px rgba(255,60,56,0.16)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "none"; }}
+                style={{ background: "var(--surface-card)", borderRadius: 14, border: "1px solid var(--stroke-line-2)", borderLeft: "4px solid var(--dao-red)", padding: "18px 18px 18px 15px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", transition: "transform .15s, box-shadow .15s, border-color .15s" }}>
+                <div style={{ width: 56, height: 56, flexShrink: 0, borderRadius: "50%", border: "1px dashed rgba(255,255,255,0.32)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, lineHeight: 1, color: "var(--text-muted)" }}>+</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="font-display" style={{ fontSize: 18, fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.3 }}>Add a new direction</div>
+                  <div className="font-body" style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>Propose another option for the flock</div>
+                </div>
+              </div>
+            )}
           </div>
-          {_canSubmitHere && (
-            <button className="btn btn-primary btn-lg" onClick={onSubmit} style={{ width: "100%", justifyContent: "center", marginTop: 12 }}>+ Add a direction</button>
-          )}
           <_VerifyPanel round={round} />
         </div>
       </div>
@@ -2335,11 +2442,26 @@ function _LiveHolders({ token }) {
   }
 
   // ── Issue detail ─────────────────────────────────────────────────
+  // Shared back button — a real, visible secondary button with a hover lift.
+  // Used on the direction-detail + propose-an-option screens. (Zep 2026-06-22:
+  // the old tiny mono "← title" link was too easy to miss.)
+  function BackButton({ onBack, style }) {
+    if (!onBack) return null;
+    return (
+      <button type="button" onClick={onBack} className="btn btn-secondary"
+        onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 10px 28px rgba(0,0,0,0.28)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = ""; }}
+        style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 15, padding: "12px 22px", ...style }}>
+        <span style={{ fontSize: 20, lineHeight: 1 }}>←</span> Back
+      </button>
+    );
+  }
+
   function F2IssueDetail({ issue, round, allocations, setAllocations, role, isBadgeholder, onBack }) {
     const v = allocations[issue.id] || 0;
     return (
       <div style={{ padding: "32px 40px", maxWidth: 1100, margin: "0 auto" }}>
-        <a onClick={onBack} className="font-mono" style={{ fontSize: 11, color: "var(--text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>← {round.title}</a>
+        <BackButton onBack={onBack} style={{ marginBottom: 16 }} />
         <h1 className="font-display" style={{ fontSize: 44, fontWeight: 700, color: "var(--text-primary)", margin: "16px 0 28px", lineHeight: 1.1, letterSpacing: "-0.02em" }}>
           {issue.title}
         </h1>
@@ -2439,7 +2561,7 @@ function _LiveHolders({ token }) {
   // ── Submit issue ─────────────────────────────────────────────────
   // Two modes: "compose" — write directly here.
   //            "import"  — paste a public GitHub issue URL (auto-fetched).
-  function F2Submit({ rounds, setRounds, role, isBadgeholder, tokens, address, setSaveToast, onSubmitted, preselectRoundId }) {
+  function F2Submit({ rounds, setRounds, role, isBadgeholder, tokens, address, setSaveToast, onSubmitted, preselectRoundId, onBack }) {
     const { data: _walletClient } = wagmi.useWalletClient();
     const [_submitting, _setSubmitting] = useState(false);
     const [_importPreview, _setImportPreview] = useState(null);
@@ -2598,9 +2720,15 @@ function _LiveHolders({ token }) {
       !eligibleRounds.find((r) => r.id === preselectRoundId)
     );
 
+    // Back link to wherever the user came from (the round, when entered via
+    // "+ Add a direction"). Added 2026-06-22 per Zep/Netto — the submit
+    // screen previously had no way back.
+    const _backLink = onBack ? <BackButton onBack={onBack} /> : null;
+
     if (!canSubmit(role, isBadgeholder)) {
       return (
         <div style={{ padding: 80, textAlign: "center" }}>
+          {_backLink && <div style={{ textAlign: "left", marginBottom: 24 }}>{_backLink}</div>}
           <div className="font-display" style={{ fontSize: 32, fontWeight: 700, color: "var(--text-primary)" }}>Only ETHSecurity Badge holders can submit issues</div>
           <div className="font-body" style={{ color: "var(--text-muted)", marginTop: 8 }}>Don't want to connect? Open an issue on GitHub instead.</div>
           <a href="https://github.com/xerxes-openclaw/thedaolog-issues/issues/new" target="_blank" rel="noreferrer" className="btn btn-ghost" style={{ marginTop: 20 }}>↗ Open on GitHub</a>
@@ -2610,6 +2738,7 @@ function _LiveHolders({ token }) {
 
     return (
       <div style={{ padding: "32px 40px", maxWidth: 880, margin: "0 auto" }}>
+        {_backLink && <div style={{ marginBottom: 16 }}>{_backLink}</div>}
         <div className="font-display" style={{ fontSize: 44, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>Propose a new option</div>
         <div className="font-body" style={{ fontSize: 15, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.6 }}>
           What should theDAO weigh in on? Drop it here, sign and it lands on the murmuration.
@@ -3270,6 +3399,35 @@ function _LiveHolders({ token }) {
       return d.toISOString();
     }
   }
+  // Parse a UTC stamp ("YYYY-MM-DD HH:MM UTC" or ISO) to epoch ms, or null.
+  function _utcMs(s) {
+    if (!s) return null;
+    const d = new Date(String(s).replace(" UTC", "Z").replace(" ", "T"));
+    return isNaN(d.getTime()) ? null : d.getTime();
+  }
+  // ISO form of a UTC stamp, for sending opensAt to the server. "" on fail.
+  function _utcToIso(s) {
+    const ms = _utcMs(s);
+    return ms == null ? "" : new Date(ms).toISOString();
+  }
+  // A round is "upcoming" if it is published ("open") but its opens time is
+  // still in the future (scheduled, not yet live). Added 2026-06-22 per Zep.
+  function _isUpcomingRound(r) {
+    if (!r || r.status !== "open") return false;
+    const o = _utcMs(r.opens);
+    return o != null && o > Date.now();
+  }
+  // A round is "past" if explicitly closed OR its close date has passed,
+  // regardless of the in-memory status (which a just-created in-session
+  // round leaves as "open" even with a past close date). Rolling rounds
+  // never auto-close. Added 2026-06-22 per Zep — enforce the schedule.
+  function _isPastRound(r) {
+    if (!r) return false;
+    if (r.status !== "open") return true;
+    if (r.rolling) return false;
+    const c = _utcMs(r.closes);
+    return c != null && c <= Date.now();
+  }
   // Short timezone abbreviation for the user's browser ("CET", "PDT",
   // "GMT+5:30", etc.) — surfaced in the field labels so a Madrid admin
   // sees "Opens (CET)" matching what the picker actually accepts.
@@ -3468,7 +3626,11 @@ function _LiveHolders({ token }) {
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn btn-secondary" onClick={onCancel}>Cancel</button>
-              <button className="btn btn-primary btn-lg" onClick={() => onSave({ ...r, status: "open" })}>{isNew ? "Publish murmuration →" : "Save & publish →"}</button>
+              <button className="btn btn-primary btn-lg" onClick={() => onSave({ ...r, status: "open" })}>{
+                (!r.rolling && _utcMs(r.opens) > Date.now())
+                  ? (isNew ? "Schedule murmuration →" : "Save & schedule →")
+                  : (isNew ? "Publish murmuration →" : "Save & publish →")
+              }</button>
             </div>
           </div>
         </div>
@@ -3532,7 +3694,7 @@ function _LiveHolders({ token }) {
               voting: p.votingMode || "quadratic",
               budget: Number(p.budget) || 100,
               cap: 0,
-              opens: p.createdAt || new Date().toISOString(),
+              opens: p.opensAt || p.createdAt || new Date().toISOString(),
               closes: p.deadline,
               rolling: false,
               status: closesMs > Date.now() ? "open" : "closed",
@@ -3732,6 +3894,7 @@ function _LiveHolders({ token }) {
             preselectRoundId={currentRound}
             setSaveToast={_setSaveToast}
             onSubmitted={(rid) => { setCurrentRound(rid); setScreen("round"); }}
+            onBack={() => setScreen(currentRound ? "round" : "rounds")}
           />
         )}
         {screen === "ballot" && (
@@ -3856,6 +4019,7 @@ function _LiveHolders({ token }) {
                   budget: Number(saved.budget) || 100,
                   options: opts,
                   deadline: _effectiveDeadline,
+                  opensAt: saved.rolling ? null : (_utcToIso(saved.opens) || null),
                   tokenId: saved.tokenId || null,
                   tokenAddress: _tokAddress && _tokChainId ? _tokAddress : null,
                   tokenChainId: _tokAddress && _tokChainId ? _tokChainId : null,

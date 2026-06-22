@@ -323,6 +323,14 @@ const ADMIN_ADDRESSES = new Set([
   "0x839395e20bbb182fa440d08f850e6c7a8f6f0780", // Griff
 ]);
 
+// Staging-only escape hatch: when ALLOW_ADMIN_VOTE_BYPASS=1 (set only on the
+// dev/staging server, NEVER prod), admin wallets may cast ballots without
+// holding the proposal's eligibility badge, so Zep can test the voter flow
+// end to end. Prod leaves this unset, so the strict not_a_badgeholder gate
+// (Zep 2026-06-03) stays in force. The voter address is the EIP-712 signature
+// signer, so a non-admin cannot spoof their way past it. (Added 2026-06-22.)
+const ALLOW_ADMIN_VOTE_BYPASS = process.env.ALLOW_ADMIN_VOTE_BYPASS === "1";
+
 // EIP-712 type for admin-signed option (issue) deletions. Lets admins
 // remove an issue from a vote without invalidating already-cast ballots:
 // the option stays in the underlying record marked deleted: true, and
@@ -490,6 +498,32 @@ await app.register(cors, { origin: true });
 
 app.get("/api/health", async () => ({ ok: true }));
 
+// Self-describing index of the public read API, so consumers can discover
+// what's available (Netto asked "is there an API?"). Public, read-only,
+// CORS-open. Returns JSON. Human docs live in the repo (API.md) rather than
+// surfaced in the app — non-tech users wouldn't use a raw API, and devs read
+// the repo. (Per Zep 2026-06-22.)
+app.get("/api", async () => ({
+  service: "theDAOlog murmuration API",
+  version: 1,
+  docs: "https://github.com/Giveth/thedaolog/blob/main/API.md",
+  readEndpoints: {
+    listProposals: "GET /api/proposals — all votes (lightweight public view)",
+    getProposal: "GET /api/proposals/:id — one vote + live tally (points per option) + voterCount",
+    listBallots: "GET /api/proposals/:id/ballots — the signed ballots cast on a vote",
+    onchainCommit: "GET /api/proposals/:id/commit — on-chain merkle root + ballot count",
+    localRoot: "GET /api/proposals/:id/local-root — locally-computed merkle root",
+    health: "GET /api/health",
+  },
+  proposalFields: [
+    "id", "title", "description", "votingMode (quadratic|token-weight)",
+    "budget", "options[] ({id,title,body})", "deadline (ISO, close time)",
+    "opensAt (ISO start time; null = live immediately)", "rolling",
+    "tokenAddress", "tokenChainId", "createdAt", "createdBy",
+  ],
+  notes: "Read-only and public, no API key required. Casting a vote requires a signed EIP-712 ballot (POST, wallet). A vote is live when now is between opensAt and deadline.",
+}));
+
 // Fetch a public GitHub issue's title/body so the Import-from-GitHub
 // flow can show a preview before the badgeholder signs. Pure read —
 // uses our PAT only to avoid unauth rate limits, no scopes required.
@@ -552,7 +586,7 @@ app.get("/api/proposals/:id", async (req, reply) => {
 // `options` may be empty — the F2 flow lets admins create an empty vote
 // shell that voters then submit issues into via POST /:id/options.
 app.post("/api/proposals", async (req, reply) => {
-  const { id, title, description, votingMode, budget, options, deadline, tokenId, tokenAddress, tokenChainId } = req.body;
+  const { id, title, description, votingMode, budget, options, deadline, opensAt, tokenId, tokenAddress, tokenChainId } = req.body;
   if (!id || !title || !deadline) {
     return reply.code(400).send({ error: "missing_fields", needs: ["id", "title", "deadline"] });
   }
@@ -592,6 +626,7 @@ app.post("/api/proposals", async (req, reply) => {
     budget: Number(budget || 100),
     options: Array.isArray(options) ? options : [],
     deadline,
+    opensAt: opensAt || null,
     tokenId: tokenId || null,
     tokenAddress: _tokenAddress,
     tokenChainId: _tokenChainId,
@@ -889,6 +924,14 @@ app.post("/api/proposals/:id/vote", async (req, reply) => {
   const deadlineMs = new Date(proposal.deadline).getTime();
   if (Number.isNaN(deadlineMs)) return reply.code(500).send({ error: "bad_proposal_deadline" });
   if (Date.now() > deadlineMs) return reply.code(400).send({ error: "voting_closed" });
+  // Scheduled vote: reject ballots before the opens time (defense in depth;
+  // the client also hides the voting UI until then). Added 2026-06-22 per Zep.
+  if (proposal.opensAt) {
+    const opensMs = new Date(proposal.opensAt).getTime();
+    if (!Number.isNaN(opensMs) && Date.now() < opensMs) {
+      return reply.code(400).send({ error: "voting_not_started", opensAt: proposal.opensAt });
+    }
+  }
 
   // EIP-712 signature verification
   let voterAddr;
@@ -955,27 +998,36 @@ app.post("/api/proposals/:id/vote", async (req, reply) => {
   // badge from the proposal (same as the issue-submission path) — a
   // hardcoded BUIDLER/Arbitrum read wrongly rejects genuine holders of
   // a mainnet badge with not_a_badgeholder.
-  const tokenSpec = resolveEligibilitySpec(proposal);
-  if (!tokenSpec) {
-    return reply.code(403).send({
-      error: "no_known_eligibility_token",
-      detail: "proposal has no usable eligibility token (neither tokenAddress+tokenChainId nor a registered tokenId)",
-    });
-  }
-  let badgeBalance;
-  try {
-    badgeBalance = await getChainClient(tokenSpec.chain).readContract({
-      address: tokenSpec.address,
-      abi: ERC721_BALANCE_OF_ABI,
-      functionName: "balanceOf",
-      args: [voterAddr],
-    });
-  } catch (e) {
-    app.log.error(e);
-    return reply.code(503).send({ error: "rpc_failed", detail: e.message });
-  }
-  if (badgeBalance === 0n) {
-    return reply.code(403).send({ error: "not_a_badgeholder" });
+  //
+  // Skipped only when an admin signs AND ALLOW_ADMIN_VOTE_BYPASS is on
+  // (staging). Prod never sets the flag, so the check below always runs.
+  const _voterIsAdmin = ADMIN_ADDRESSES.has(voterAddr.toLowerCase());
+  // Stored with the ballot record below. Declared out here (not inside the
+  // eligibility block) so the admin staging-bypass path still has a value;
+  // defaults to 0n and the on-chain read overwrites it on the normal path.
+  let badgeBalance = 0n;
+  if (!(ALLOW_ADMIN_VOTE_BYPASS && _voterIsAdmin)) {
+    const tokenSpec = resolveEligibilitySpec(proposal);
+    if (!tokenSpec) {
+      return reply.code(403).send({
+        error: "no_known_eligibility_token",
+        detail: "proposal has no usable eligibility token (neither tokenAddress+tokenChainId nor a registered tokenId)",
+      });
+    }
+    try {
+      badgeBalance = await getChainClient(tokenSpec.chain).readContract({
+        address: tokenSpec.address,
+        abi: ERC721_BALANCE_OF_ABI,
+        functionName: "balanceOf",
+        args: [voterAddr],
+      });
+    } catch (e) {
+      app.log.error(e);
+      return reply.code(503).send({ error: "rpc_failed", detail: e.message });
+    }
+    if (badgeBalance === 0n) {
+      return reply.code(403).send({ error: "not_a_badgeholder" });
+    }
   }
 
   // Pin to IPFS (best-effort; if Pinata isn't configured, cid is null).
