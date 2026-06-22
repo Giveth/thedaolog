@@ -287,6 +287,7 @@ export async function createProposal(
     budget: number;
     options: VoteOption[];
     deadline: string;
+    opensAt?: string | null; // ISO; when set, server rejects ballots before it
     tokenId?: string | null;
     tokenAddress?: `0x${string}` | null;
     tokenChainId?: number | null;
