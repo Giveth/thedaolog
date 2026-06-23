@@ -37,8 +37,8 @@ const LEGACY_TOKEN_BY_ID: Record<string, { address: `0x${string}`; chainId: numb
 // without editing this list.
 const ADMIN_ADDRESSES = new Set<string>(
   [
-    "0x839395e20bbb182fa440d08f850e6c7a8f6f0780", // Griff
-    "0x72315dddeb862cd484b9f37d37952ec9080557cd", // Zep (also in server allowlist)
+    "0x839395e20bbb182fa440d08f850e6c7a8f6f0780", // admin
+    "0x72315dddeb862cd484b9f37d37952ec9080557cd", // admin (also in server allowlist)
     ...String(import.meta.env.VITE_EXTRA_ADMIN_ADDRESSES || "")
       .split(",")
       .map((a) => a.trim().toLowerCase())
@@ -87,7 +87,7 @@ export function WalletGate(): React.ReactElement {
   // there is (or was) a vote whose eligibility token it holds. Holding a
   // badge with no vote that uses it does NOT make you a badgeholder. So
   // when an admin deletes the only vote that used a given badge, holders
-  // of that badge stop being badgeholders. (Per Zep, 2026-06-03.)
+  // of that badge stop being badgeholders. (Per a maintainer, 2026-06-03.)
   //
   // We fetch the proposal list, collect the DISTINCT eligibility tokens
   // those proposals require (each as address+chainId, resolving legacy

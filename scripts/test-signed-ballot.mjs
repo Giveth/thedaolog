@@ -7,7 +7,7 @@ import { readDeployerKey } from "./deployer-key.mjs";
 
 // Use the deployer wallet — it's NOT a badgeholder, so we expect the
 // `not_a_badgeholder` failure path. To exercise the success path we'd
-// sign with one of the addresses Zep minted to.
+// sign with one of the addresses the team minted to.
 const { privateKey } = readDeployerKey();
 const account = privateKeyToAccount(privateKey);
 console.log("test signer:", account.address);

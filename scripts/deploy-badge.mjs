@@ -3,7 +3,7 @@
 // + tx hash + Arbiscan link on success. Run this once per chain.
 //
 // Usage: node scripts/deploy-badge.mjs
-//   ADMIN_ADDRESS    override (default: Zep's admin wallet)
+//   ADMIN_ADDRESS    override (default: the admin wallet)
 //   METADATA_URI     override (default: TheDAOlog funnel /badge.json)
 import fs from "node:fs";
 import path from "node:path";

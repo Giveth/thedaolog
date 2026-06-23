@@ -724,14 +724,14 @@ function _LiveHolders({ token }) {
   };
 
   // Voting & submitting require actually HOLDING an eligible badge, not the
-  // admin role. An admin who doesn't hold the NFT can't vote (per Zep
+  // admin role. An admin who doesn't hold the NFT can't vote (per a maintainer
   // 2026-06-03). holdsBadge = WalletGate's isBadgeholder. Back-compat: if
   // undefined, fall back to role so older call sites don't break.
   //
   // _DEV is true only on the Vite dev server (staging at localhost:7100) and
   // false in the prod `vite build` (murmur.thedao.fund), where every branch
   // guarded by it is dead-code-eliminated. Staging-only test affordances hang
-  // off it so they can never reach prod. Added 2026-06-22 per Zep so he can
+  // off it so they can never reach prod. Added 2026-06-22 per a maintainer so he can
   // test the voter flow without holding each round's badge.
   const _DEV = import.meta.env.DEV;
   // Staging only: the admin can vote/submit on every round. Prod keeps the
@@ -787,7 +787,7 @@ function _LiveHolders({ token }) {
         });
         row.appendChild(btn);
         // Place it right BELOW the "official WalletConnect modal? OPEN" line so
-        // OPEN stays visible; bold so it isn't missed. (Per Zep 2026-06-19.)
+        // OPEN stays visible; bold so it isn't missed. (Per a maintainer, 2026-06-19.)
         prompt.insertAdjacentElement("afterend", row);
         // RainbowKit's QR card is fixed-height and clips the bottom edge, so
         // the new row hangs off the modal. Grow the few fixed-height ancestors
@@ -990,7 +990,7 @@ function _LiveHolders({ token }) {
   // Incognito status is determined ONLY by on-chain ownership of the
   // private badge contract (0x3b49f4…ce35c), passed in as the
   // `isIncognito` prop from main.tsx's balanceOf read. There is no
-  // static anon-address list — removed 2026-06-03 per Zep: the contract
+  // static anon-address list — removed 2026-06-03 per a maintainer: the contract
   // is the single source of truth for who votes anonymously.
   let _pfpMapping = null; // { [lowerAddr]: index 1..200 } or null until fetched
   let _pfpDataPromise = null;
@@ -1011,12 +1011,12 @@ function _LiveHolders({ token }) {
     // Strict 1:1 with the 200 ETHSecurity Badge holders
     // (0xf67C0aDe41c607EfeBf198F9D6065Ab1ec5aD4cd). Birds belong to that
     // set ONLY — exactly one per holder. Anyone not in the snapshot
-    // (admins like griff.eth, future holders not yet snapshotted, test
+    // (admins, future holders not yet snapshotted, test
     // wallets) gets NO bird and falls back to the role chip. The old
-    // FNV-1a hash fallback was removed 2026-06-03 (per Zep) because it
+    // FNV-1a hash fallback was removed 2026-06-03 (per a maintainer) because it
     // handed non-holders a real holder's PFP via hash collision.
     if (_pfpMapping && _pfpMapping[lower]) return _pfpMapping[lower];
-    // Staging only (Zep 2026-06-22): give non-holders (admins, mock test
+    // Staging only (per a maintainer, 2026-06-22): give non-holders (admins, mock test
     // wallets) a deterministic "random" public bird, stable per wallet and
     // distinct across mock wallets, so the voter UI can be tested with a real
     // PFP. NEVER on prod, where a non-holder must not borrow a real holder's
@@ -1406,7 +1406,7 @@ function _LiveHolders({ token }) {
   // ── Rounds list (landing) ────────────────────────────────────────
   function F2RoundsList({ rounds, role, isBadgeholder, onOpen, onCreate }) {
     // Three groups: active (live now), upcoming (scheduled, opens in the
-    // future), past (closed). Added 2026-06-22 per Zep — scheduled votes.
+    // future), past (closed). Added 2026-06-22 per a maintainer — scheduled votes.
     const upcoming = rounds.filter(r => _isUpcomingRound(r));
     const closed = rounds.filter(r => !_isUpcomingRound(r) && _isPastRound(r));
     const open = rounds.filter(r => !_isUpcomingRound(r) && !_isPastRound(r) && r.status === "open");
@@ -1500,7 +1500,7 @@ function _LiveHolders({ token }) {
     };
     const accent = accentMap[r.accent] || "var(--dao-red)";
     // Public / private badge label — shown when the round's eligibility
-    // token is one of the two mainnet ETHSecurity badges. (Per Zep 2026-06-17.)
+    // token is one of the two mainnet ETHSecurity badges. (Per a maintainer, 2026-06-17.)
     const _ra = String(r.tokenAddress || "").toLowerCase();
     const _isPublicRound = _ra === "0xf67c0ade41c607efebf198f9d6065ab1ec5ad4cd";
     const _isPrivateRound = _ra === "0x3b49f45ec8796f64febb1ae0f5661791845ce35c";
@@ -1562,7 +1562,7 @@ function _LiveHolders({ token }) {
   // ── Donut for budget visualization ──────────────────────────────
   // Voting-mode badge for the vote sidebar. A bold pill (so the mode is never
   // missed) plus a "?" that toggles a plain-language explainer. Copy carries
-  // no dashes (Zep 2026-06-22: dashes read as AI on murmurations).
+  // no dashes (per a maintainer, 2026-06-22: dashes read as AI on murmurations).
   function VotingModeBadge({ voting }) {
     const [open, setOpen] = useState(false);
     const isQv = voting === "quadratic";
@@ -1886,7 +1886,7 @@ function _LiveHolders({ token }) {
     // ONLY to wallets that actually hold one of the two ETHSecurity badges
     // (a real holder who connected the wrong one of their two wallets). Plain
     // visitors with no badge don't need the public/private detail — they keep
-    // the original generic "connect a badge wallet" copy. (Per Zep 2026-06-17.)
+    // the original generic "connect a badge wallet" copy. (Per a maintainer, 2026-06-17.)
     const _showIdentityHint = _knowsPerRound && (isPublicBadgeholder || isIncognito);
     const [_deletingIssueId, _setDeletingIssueId] = useState(null);
     const [_deletingPending, _setDeletingPending] = useState(false);
@@ -2062,7 +2062,7 @@ function _LiveHolders({ token }) {
     };
 
     // Scheduled vote that hasn't opened yet — show an "opens on" screen
-    // instead of the voting UI. (Bug fix 2026-06-22 per Zep: future-dated
+    // instead of the voting UI. (Bug fix 2026-06-22 per a maintainer: future-dated
     // votes were castable before their start.)
     if (_isUpcomingRound(round)) {
       return (
@@ -2427,7 +2427,7 @@ function _LiveHolders({ token }) {
               );
             })}
             {/* Add-a-direction rendered as the last card in the list, styled
-                like the option cards (Zep 2026-06-22): a dashed "+" where the
+                like the option cards (per a maintainer, 2026-06-22): a dashed "+" where the
                 coin sits + label, clickable to open the propose screen. */}
             {_canSubmitHere && (
               <div onClick={onSubmit} role="button" title="Propose a new direction"
@@ -2450,7 +2450,7 @@ function _LiveHolders({ token }) {
 
   // ── Issue detail ─────────────────────────────────────────────────
   // Shared back button — a real, visible secondary button with a hover lift.
-  // Used on the direction-detail + propose-an-option screens. (Zep 2026-06-22:
+  // Used on the direction-detail + propose-an-option screens. (per a maintainer, 2026-06-22:
   // the old tiny mono "← title" link was too easy to miss.)
   function BackButton({ onBack, style }) {
     if (!onBack) return null;
@@ -2728,7 +2728,7 @@ function _LiveHolders({ token }) {
     );
 
     // Back link to wherever the user came from (the round, when entered via
-    // "+ Add a direction"). Added 2026-06-22 per Zep/Netto — the submit
+    // "+ Add a direction"). Added 2026-06-22 per the team — the submit
     // screen previously had no way back.
     const _backLink = onBack ? <BackButton onBack={onBack} /> : null;
 
@@ -3418,7 +3418,7 @@ function _LiveHolders({ token }) {
     return ms == null ? "" : new Date(ms).toISOString();
   }
   // A round is "upcoming" if it is published ("open") but its opens time is
-  // still in the future (scheduled, not yet live). Added 2026-06-22 per Zep.
+  // still in the future (scheduled, not yet live). Added 2026-06-22 per a maintainer.
   function _isUpcomingRound(r) {
     if (!r || r.status !== "open") return false;
     const o = _utcMs(r.opens);
@@ -3427,7 +3427,7 @@ function _LiveHolders({ token }) {
   // A round is "past" if explicitly closed OR its close date has passed,
   // regardless of the in-memory status (which a just-created in-session
   // round leaves as "open" even with a past close date). Rolling rounds
-  // never auto-close. Added 2026-06-22 per Zep — enforce the schedule.
+  // never auto-close. Added 2026-06-22 per a maintainer — enforce the schedule.
   function _isPastRound(r) {
     if (!r) return false;
     if (r.status !== "open") return true;

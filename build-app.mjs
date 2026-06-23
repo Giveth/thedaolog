@@ -216,7 +216,7 @@ flow2 = flow2.replace(
 // --- F2RoundEditor footer: keep Cancel (visible), drop Save draft -
 // Cancel was btn-ghost which renders white-on-light (invisible) — switch
 // to btn-secondary like Disconnect. Save draft is removed entirely per
-// Zep 2026-05-01: it's redundant work for the admin and the draft state
+// admin 2026-05-01: it's redundant work for the admin and the draft state
 // isn't otherwise used in the flow.
 flow2 = flow2.replace(
   /<button className="btn btn-ghost" onClick=\{onCancel\}>Cancel<\/button>\n\s*<button className="btn btn-ghost" onClick=\{\(\) => onSave\(\{ \.\.\.r, status: "draft" \}\)\}>Save draft<\/button>/,
@@ -224,7 +224,7 @@ flow2 = flow2.replace(
 );
 
 // --- Restructure Budget cell + remove "Submissions per holder" ----
-// Per Zep 2026-05-01: drop the per-holder submission cap entirely, and
+// Per a maintainer 2026-05-01: drop the per-holder submission cap entirely, and
 // reframe Budget as a 2-option toggle:
 //   - Token-based: voting power derived from balanceOf (no budget input)
 //   - By user:     admin sets a fixed allocation per badgeholder
@@ -2120,7 +2120,7 @@ flow2 = flow2.replace(
 // --- User-facing "round" → "vote" copy fixes ---------------------
 // Per HANDOFF.md the design team intended the user-facing term to be
 // "vote" everywhere (internals stay as "round"). They mostly converted
-// it but missed a handful of spots Zep flagged on 2026-05-01. These are
+// it but missed a handful of spots a maintainer flagged on 2026-05-01. These are
 // applied to flow2-budget content only — internal var names and the
 // `r.id` / `setRounds(...)` machinery stays untouched.
 const COPY_FIXES = [

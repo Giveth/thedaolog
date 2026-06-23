@@ -54,7 +54,7 @@ console.log("▸ Sending deploy tx…");
 const txHash = await wc.deployContract({
   abi,
   bytecode,
-  args: [account.address],  // deployer is also admin (can transferAdmin later to Zep)
+  args: [account.address],  // deployer is also admin (can transferAdmin later to an admin)
 });
 console.log("  tx:", txHash);
 console.log("  https://arbiscan.io/tx/" + txHash);

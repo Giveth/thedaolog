@@ -14,20 +14,12 @@ const { privateKey } = readDeployerKey();
 const account = privateKeyToAccount(privateKey);
 const CONTRACT = "0x32d664ca9ea4bad60b2b8ed61dec30692df43ac9";
 
-// Zep's list, 2026-05-14. Names with no address omitted (Lauren, Ivy,
-// Algene, Cotabe, Ali, Mahdi).
+// address list update 2026-05-18: 3 new addresses, a wallet
+// rotation handled via self-transfer (option b), not re-minted here.
 const CANDIDATES = [
-  { name: "Shyne",   addr: "0x585c4d8f227AD78b0991176f0DF27d2393F7228d" },
-  { name: "Mohamed", addr: "0x2d792c87C41131A3E6c13C83359E3C6Ab7D33Ed4" },
-  { name: "Kechy",   addr: "0x29EE09Bd0f7f41EcD083Ad2708Df17691065790B" },
-  { name: "Rodri",   addr: "0xF6D7E64444b35fbA42876F6639A5Ae1d54f1f740" },
-  { name: "Griff",   addr: "0x839395e20bbb182fa440d08f850e6c7a8f6f0780" },
-  { name: "Kay",     addr: "0x9a5d42598eCca26E233AcbDfC0D38e46D153B289" },
-  { name: "Ashley",  addr: "0x735CeEe359627C2176789B5AD23216dCb5f9849e" },
-  { name: "Alireza", addr: "0xb70A94dDaF521979FEC9Bb02Ab963F580E82cE0B" },
-  { name: "Mo",      addr: "0x17C8020dE84d4097b01387823f9D33Ff8E62577c" },
-  { name: "Maryjaf", addr: "0xA1179f64638adb613DDAAc32D918EB6BEB824104" },
-  { name: "Jake",    addr: "0x939E50655cf6dA7D643CFf8Cfa31c3033b16328A" },
+  { name: "holder", addr: "0x0386C80880479B0Ddd0294FE8c0Cd9C0fCE8516E" },
+  { name: "holder",    addr: "0xb760FE1bbC4A2752aBCBb28291a57Cb0cA99fF44" },
+  { name: "holder",    addr: "0x864af8991100d5E2Df52a3c7ae64db111E983D24" },
 ];
 
 const normalized = CANDIDATES.map((r) => ({ ...r, addr: getAddress(r.addr) }));
@@ -50,7 +42,7 @@ console.log("▸ Deployer:", account.address);
 const bal = await pub.getBalance({ address: account.address });
 console.log("  ETH:", formatEther(bal));
 
-console.log("\n▸ Pre-mint balances (already-holders will be skipped):");
+console.log("\n▸ Pre-mint balances:");
 const recipients = [];
 const skipped = [];
 for (const r of normalized) {
@@ -61,12 +53,12 @@ for (const r of normalized) {
 }
 
 if (recipients.length === 0) {
-  console.log("\n▸ Nothing to mint — everyone in the list already holds a badge.");
+  console.log("\n▸ Nothing to mint.");
   process.exit(0);
 }
 
 const nextIdBefore = await pub.readContract({ address: CONTRACT, abi, functionName: "nextId" });
-console.log(`\n▸ Submitting safeMintBatch for ${recipients.length} addresses…`);
+console.log(`\n▸ safeMintBatch for ${recipients.length} addresses…`);
 console.log(`  nextId before: ${nextIdBefore}, new tokens: ${recipients.map((_, i) => Number(nextIdBefore) + i).join(", ")}`);
 
 const txHash = await wc.writeContract({
@@ -101,4 +93,3 @@ for (const t of transfers) {
 
 const nextIdAfter = await pub.readContract({ address: CONTRACT, abi, functionName: "nextId" });
 console.log(`\n  nextId after: ${nextIdAfter}`);
-console.log(`\n▸ Skipped (already held a badge): ${skipped.map(s => s.name).join(", ") || "(none)"}`);

@@ -7,7 +7,7 @@
 # The app container uses Docker's internal `db:5432` hostname. Host-side
 # `node server/api.mjs` can still use localhost:15432.
 #
-# Kay's deploy: ignore this file and point DATABASE_URL at the org's
+# a production deploy: ignore this file and point DATABASE_URL at the org's
 # managed Postgres. The schema is auto-applied on first connect by
 # server/db.mjs (CREATE TABLE IF NOT EXISTS), so no separate setup step.
 

@@ -15,7 +15,7 @@
 //   DATABASE_URL=postgres://thedaolog:thedaolog@localhost:15432/thedaolog
 //
 // For local dev, run `docker compose up -d db` from the repo root to spin
-// up a matching Postgres. On Kay's deploy, point at the org's Postgres.
+// up a matching Postgres. On a production deploy, point at the org's Postgres.
 
 import pg from "pg";
 const { Pool } = pg;

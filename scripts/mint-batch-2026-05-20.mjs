@@ -14,15 +14,13 @@ const { privateKey } = readDeployerKey();
 const account = privateKeyToAccount(privateKey);
 const CONTRACT = "0x32d664ca9ea4bad60b2b8ed61dec30692df43ac9";
 
-const RECIPIENTS = [
-  { name: "holder",   addr: "0x585c4d8f227AD78b0991176f0DF27d2393F7228d" },
-  { name: "holder", addr: "0x2d792c87C41131A3E6c13C83359E3C6Ab7D33Ed4" },
-  { name: "holder",   addr: "0x29EE09Bd0f7f41EcD083Ad2708Df17691065790B" },
-  { name: "holder",   addr: "0xF6D7E64444b35fbA42876F6639A5Ae1d54f1f740" },
+const CANDIDATES = [
+  { name: "holder",    addr: "0x6e7679d53C43a8A9E2cf87fCA99a1DB9B379FE29" },
+  { name: "holder",     addr: "0x91eBbA819E4BbA03065a106290afcB44deB1F9d6" },
+  { name: "holder", addr: "0x6eb78c56f639b3d161456e9f893c8e8ad9d754f0" },
 ];
 
-// Validate + checksum-normalize each address (throws if any is invalid).
-const normalized = RECIPIENTS.map((r) => ({ ...r, addr: getAddress(r.addr) }));
+const normalized = CANDIDATES.map((r) => ({ ...r, addr: getAddress(r.addr) }));
 
 const abi = [
   { type: "function", name: "safeMintBatch", inputs: [{ type: "address[]" }], outputs: [], stateMutability: "nonpayable" },
@@ -41,32 +39,41 @@ const wc = createWalletClient({ account, chain: arbitrum, transport: http() });
 console.log("▸ Deployer:", account.address);
 const bal = await pub.getBalance({ address: account.address });
 console.log("  ETH:", formatEther(bal));
-const nextIdBefore = await pub.readContract({ address: CONTRACT, abi, functionName: "nextId" });
-console.log("  nextId before:", nextIdBefore.toString(), "  → expected new tokens:", normalized.map((_, i) => Number(nextIdBefore) + i).join(", "));
 
-console.log("▸ Pre-mint balances (to detect already-minted recipients):");
+console.log("\n▸ Pre-mint balance check:");
+const recipients = [];
+const skipped = [];
 for (const r of normalized) {
   const b = await pub.readContract({ address: CONTRACT, abi, functionName: "balanceOf", args: [r.addr] });
-  console.log(`  ${r.name.padEnd(8)} ${r.addr}  balance=${b}`);
+  const has = b > 0n;
+  console.log(`  ${r.name.padEnd(10)} ${r.addr}  balance=${b}${has ? "  [SKIP]" : "  [MINT]"}`);
+  if (has) skipped.push(r); else recipients.push(r);
 }
 
-console.log("▸ Submitting safeMintBatch tx…");
+if (recipients.length === 0) {
+  console.log("\n▸ All recipients already hold a badge — nothing to mint.");
+  process.exit(0);
+}
+
+const nextIdBefore = await pub.readContract({ address: CONTRACT, abi, functionName: "nextId" });
+console.log(`\n▸ safeMintBatch for ${recipients.length} addresses…`);
+console.log(`  nextId before: ${nextIdBefore}, new tokens: ${recipients.map((_, i) => Number(nextIdBefore) + i).join(", ")}`);
+
 const txHash = await wc.writeContract({
   address: CONTRACT,
   abi,
   functionName: "safeMintBatch",
-  args: [normalized.map((r) => r.addr)],
+  args: [recipients.map((r) => r.addr)],
 });
 console.log("  tx:", txHash);
 console.log("  https://arbiscan.io/tx/" + txHash);
 
-console.log("▸ Waiting for receipt…");
+console.log("\n▸ Waiting for receipt…");
 const receipt = await pub.waitForTransactionReceipt({ hash: txHash });
 if (receipt.status !== "success") throw new Error("mint batch failed");
 const cost = receipt.gasUsed * receipt.effectiveGasPrice;
 console.log(`✅ minted. gas=${receipt.gasUsed}  cost=${formatEther(cost)} ETH`);
 
-// Decode Transfer events to confirm token ID → recipient mapping.
 const transfers = [];
 for (const log of receipt.logs) {
   try {
@@ -76,11 +83,8 @@ for (const log of receipt.logs) {
     }
   } catch {}
 }
-console.log("\n▸ Mints from this tx:");
+console.log("\n▸ Minted in this tx:");
 for (const t of transfers) {
-  const recipient = normalized.find((r) => r.addr.toLowerCase() === t.to.toLowerCase());
-  console.log(`  token #${t.tokenId} → ${recipient?.name ?? "?"} (${t.to})`);
+  const r = recipients.find((x) => x.addr.toLowerCase() === t.to.toLowerCase());
+  console.log(`  token #${t.tokenId} → ${r?.name ?? "?"} (${t.to})`);
 }
-
-const nextIdAfter = await pub.readContract({ address: CONTRACT, abi, functionName: "nextId" });
-console.log("\n  nextId after:", nextIdAfter.toString());

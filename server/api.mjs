@@ -54,7 +54,7 @@ const ERC721_BALANCE_OF_ABI = [
 // chain's DEFAULT public RPC (cloudflare-eth / eth.merkle.io for
 // mainnet), which is aggressively rate-limited and was returning errors
 // from the server — surfacing to users as a 503 "rpc_failed" when they
-// tried to submit a direction (2026-06-03: Griff hit this on prod). Use
+// tried to submit a direction (2026-06-03: an admin hit this on prod). Use
 // the same reliable providers the frontend already uses in wagmi.ts.
 // Overridable via env (MAINNET_RPC_URL / ARBITRUM_RPC_URL) for ops.
 const RPC_URLS = {
@@ -321,7 +321,7 @@ const ADMIN_ACTION_TYPES = {
 const ADMIN_ADDRESSES = new Set([
   "0xb0bb2dafd918104c1a7761430fd51e7776749edf",
   "0x72315dddeb862cd484b9f37d37952ec9080557cd",
-  "0x839395e20bbb182fa440d08f850e6c7a8f6f0780", // Griff
+  "0x839395e20bbb182fa440d08f850e6c7a8f6f0780", // admin
   // Extra per-environment admins (comma-separated), mirroring the client's
   // VITE_EXTRA_ADMIN_ADDRESSES. Unset on prod; used by the test suite.
   ...String(process.env.EXTRA_ADMIN_ADDRESSES || "")
@@ -332,9 +332,9 @@ const ADMIN_ADDRESSES = new Set([
 
 // Staging-only escape hatch: when ALLOW_ADMIN_VOTE_BYPASS=1 (set only on the
 // dev/staging server, NEVER prod), admin wallets may cast ballots without
-// holding the proposal's eligibility badge, so Zep can test the voter flow
+// holding the proposal's eligibility badge, so an admin can test the voter flow
 // end to end. Prod leaves this unset, so the strict not_a_badgeholder gate
-// (Zep 2026-06-03) stays in force. The voter address is the EIP-712 signature
+// (per a maintainer, 2026-06-03) stays in force. The voter address is the EIP-712 signature
 // signer, so a non-admin cannot spoof their way past it. (Added 2026-06-22.)
 // Read per-request (not cached at boot) so the value reflects the current
 // environment — prod never sets it; the test suite toggles it per case.
@@ -510,10 +510,10 @@ await app.register(cors, { origin: true });
 app.get("/api/health", async () => ({ ok: true }));
 
 // Self-describing index of the public read API, so consumers can discover
-// what's available (Netto asked "is there an API?"). Public, read-only,
+// what's available (a tester asked "is there an API?"). Public, read-only,
 // CORS-open. Returns JSON. Human docs live in the repo (API.md) rather than
 // surfaced in the app — non-tech users wouldn't use a raw API, and devs read
-// the repo. (Per Zep 2026-06-22.)
+// the repo. (Per a maintainer, 2026-06-22.)
 app.get("/api", async () => ({
   service: "theDAOlog murmuration API",
   version: 1,
@@ -936,7 +936,7 @@ app.post("/api/proposals/:id/vote", async (req, reply) => {
   if (Number.isNaN(deadlineMs)) return reply.code(500).send({ error: "bad_proposal_deadline" });
   if (Date.now() > deadlineMs) return reply.code(400).send({ error: "voting_closed" });
   // Scheduled vote: reject ballots before the opens time (defense in depth;
-  // the client also hides the voting UI until then). Added 2026-06-22 per Zep.
+  // the client also hides the voting UI until then). Added 2026-06-22 per a maintainer.
   if (proposal.opensAt) {
     const opensMs = new Date(proposal.opensAt).getTime();
     if (!Number.isNaN(opensMs) && Date.now() < opensMs) {

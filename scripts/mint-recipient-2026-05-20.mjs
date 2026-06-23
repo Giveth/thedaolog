@@ -14,12 +14,8 @@ const { privateKey } = readDeployerKey();
 const account = privateKeyToAccount(privateKey);
 const CONTRACT = "0x32d664ca9ea4bad60b2b8ed61dec30692df43ac9";
 
-// Zep's list update 2026-05-18: 3 new addresses, Rodri's wallet
-// rotation handled via self-transfer (option b), not re-minted here.
 const CANDIDATES = [
-  { name: "Lauren", addr: "0x0386C80880479B0Ddd0294FE8c0Cd9C0fCE8516E" },
-  { name: "Ivy",    addr: "0xb760FE1bbC4A2752aBCBb28291a57Cb0cA99fF44" },
-  { name: "Ali",    addr: "0x864af8991100d5E2Df52a3c7ae64db111E983D24" },
+  { name: "holder", addr: "0xA4D506434445Bb7303eA34A07bc38484cdC64a95" },
 ];
 
 const normalized = CANDIDATES.map((r) => ({ ...r, addr: getAddress(r.addr) }));
@@ -42,18 +38,18 @@ console.log("▸ Deployer:", account.address);
 const bal = await pub.getBalance({ address: account.address });
 console.log("  ETH:", formatEther(bal));
 
-console.log("\n▸ Pre-mint balances:");
+console.log("\n▸ Pre-mint balance check:");
 const recipients = [];
 const skipped = [];
 for (const r of normalized) {
   const b = await pub.readContract({ address: CONTRACT, abi, functionName: "balanceOf", args: [r.addr] });
   const has = b > 0n;
-  console.log(`  ${r.name.padEnd(8)} ${r.addr}  balance=${b}${has ? "  [SKIP]" : "  [MINT]"}`);
+  console.log(`  ${r.name.padEnd(10)} ${r.addr}  balance=${b}${has ? "  [SKIP]" : "  [MINT]"}`);
   if (has) skipped.push(r); else recipients.push(r);
 }
 
 if (recipients.length === 0) {
-  console.log("\n▸ Nothing to mint.");
+  console.log("\n▸ Already holds a badge — nothing to mint.");
   process.exit(0);
 }
 
@@ -90,6 +86,3 @@ for (const t of transfers) {
   const r = recipients.find((x) => x.addr.toLowerCase() === t.to.toLowerCase());
   console.log(`  token #${t.tokenId} → ${r?.name ?? "?"} (${t.to})`);
 }
-
-const nextIdAfter = await pub.readContract({ address: CONTRACT, abi, functionName: "nextId" });
-console.log(`\n  nextId after: ${nextIdAfter}`);

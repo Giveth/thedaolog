@@ -189,7 +189,7 @@ const F2 = (() => {
   // Incognito status is determined ONLY by on-chain ownership of the
   // private badge contract (0x3b49f4…ce35c), passed in as the
   // `isIncognito` prop from main.tsx's balanceOf read. There is no
-  // static anon-address list — removed 2026-06-03 per Zep: the contract
+  // static anon-address list — removed 2026-06-03 per a maintainer: the contract
   // is the single source of truth for who votes anonymously.
   let _pfpMapping = null; // { [lowerAddr]: index 1..200 } or null until fetched
   let _pfpDataPromise = null;
@@ -210,9 +210,9 @@ const F2 = (() => {
     // Strict 1:1 with the 200 ETHSecurity Badge holders
     // (0xf67C0aDe41c607EfeBf198F9D6065Ab1ec5aD4cd). Birds belong to that
     // set ONLY — exactly one per holder. Anyone not in the snapshot
-    // (admins like griff.eth, future holders not yet snapshotted, test
+    // (admins, future holders not yet snapshotted, test
     // wallets) gets NO bird and falls back to the role chip. The old
-    // FNV-1a hash fallback was removed 2026-06-03 (per Zep) because it
+    // FNV-1a hash fallback was removed 2026-06-03 (per a maintainer) because it
     // handed non-holders a real holder's PFP via hash collision.
     if (_pfpMapping && _pfpMapping[lower]) return _pfpMapping[lower];
     return null;

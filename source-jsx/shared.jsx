@@ -159,7 +159,7 @@ const ISSUES = [
     severity: "medium",
     area: "Gas",
     chain: "Mainnet",
-    author: "griff.g",
+    author: "sample.g",
     opened: "6w",
     comments: 18,
     bounty: "15,000 USDC",
@@ -190,7 +190,7 @@ const BADGEHOLDERS = [
   { id: "jordi",        name: "Jordi Baylina",    org: "ZisK",                img: "assets/portraits/jordi.png",   votes: 9,  allocated: 7200, rep: 9.4 },
   { id: "pcaversaccio", name: "pcaversaccio",     org: "SEAL 911",            img: "assets/portraits/pcaversaccio.png", votes: 24, allocated: 9800, rep: 9.9 },
   { id: "alex",         name: "Alex Van de Sande",org: "ENS",                 img: "assets/portraits/alex.png",    votes: 14, allocated: 8800, rep: 9.5 },
-  { id: "griff",        name: "Griff Green",      org: "Giveth",              img: "assets/portraits/griff.png",   votes: 11, allocated: 6900, rep: 9.1 },
+  { id: "sample",       name: "Sample Holder",    org: "Giveth",              img: "assets/portraits/sample.png",  votes: 11, allocated: 6900, rep: 9.1 },
   { id: "pol",          name: "Pol Lanski",       org: "Dappnode",            img: "assets/portraits/pol.png",     votes: 7,  allocated: 5400, rep: 8.9 },
 ];
 

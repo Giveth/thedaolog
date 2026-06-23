@@ -15,9 +15,7 @@ const account = privateKeyToAccount(privateKey);
 const CONTRACT = "0x32d664ca9ea4bad60b2b8ed61dec30692df43ac9";
 
 const CANDIDATES = [
-  { name: "Cotabe",    addr: "0x6e7679d53C43a8A9E2cf87fCA99a1DB9B379FE29" },
-  { name: "Ramin",     addr: "0x91eBbA819E4BbA03065a106290afcB44deB1F9d6" },
-  { name: "Anamarija", addr: "0x6eb78c56f639b3d161456e9f893c8e8ad9d754f0" },
+  { name: "holder", addr: "0xb0DDEa60ae36eFA8C298b46Ab342309FdFFd66cf" },
 ];
 
 const normalized = CANDIDATES.map((r) => ({ ...r, addr: getAddress(r.addr) }));
@@ -42,12 +40,11 @@ console.log("  ETH:", formatEther(bal));
 
 console.log("\n▸ Pre-mint balance check:");
 const recipients = [];
-const skipped = [];
 for (const r of normalized) {
   const b = await pub.readContract({ address: CONTRACT, abi, functionName: "balanceOf", args: [r.addr] });
   const has = b > 0n;
   console.log(`  ${r.name.padEnd(10)} ${r.addr}  balance=${b}${has ? "  [SKIP]" : "  [MINT]"}`);
-  if (has) skipped.push(r); else recipients.push(r);
+  if (!has) recipients.push(r);
 }
 
 if (recipients.length === 0) {
@@ -56,7 +53,7 @@ if (recipients.length === 0) {
 }
 
 const nextIdBefore = await pub.readContract({ address: CONTRACT, abi, functionName: "nextId" });
-console.log(`\n▸ safeMintBatch for ${recipients.length} addresses…`);
+console.log(`\n▸ safeMintBatch for ${recipients.length} address(es)…`);
 console.log(`  nextId before: ${nextIdBefore}, new tokens: ${recipients.map((_, i) => Number(nextIdBefore) + i).join(", ")}`);
 
 const txHash = await wc.writeContract({
