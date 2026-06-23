@@ -8,3 +8,5 @@ data/
 .env
 .env.local
 .*.md
+# test coverage output
+coverage/

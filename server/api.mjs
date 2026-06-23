@@ -26,6 +26,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { arbitrum, mainnet } from "viem/chains";
+import { pathToFileURL } from "node:url";
 
 // Ballots and proposals now live in Postgres via server/db.mjs.
 
@@ -321,6 +322,12 @@ const ADMIN_ADDRESSES = new Set([
   "0xb0bb2dafd918104c1a7761430fd51e7776749edf",
   "0x72315dddeb862cd484b9f37d37952ec9080557cd",
   "0x839395e20bbb182fa440d08f850e6c7a8f6f0780", // Griff
+  // Extra per-environment admins (comma-separated), mirroring the client's
+  // VITE_EXTRA_ADMIN_ADDRESSES. Unset on prod; used by the test suite.
+  ...String(process.env.EXTRA_ADMIN_ADDRESSES || "")
+    .split(",")
+    .map((a) => a.trim().toLowerCase())
+    .filter(Boolean),
 ]);
 
 // Staging-only escape hatch: when ALLOW_ADMIN_VOTE_BYPASS=1 (set only on the
@@ -329,7 +336,11 @@ const ADMIN_ADDRESSES = new Set([
 // end to end. Prod leaves this unset, so the strict not_a_badgeholder gate
 // (Zep 2026-06-03) stays in force. The voter address is the EIP-712 signature
 // signer, so a non-admin cannot spoof their way past it. (Added 2026-06-22.)
-const ALLOW_ADMIN_VOTE_BYPASS = process.env.ALLOW_ADMIN_VOTE_BYPASS === "1";
+// Read per-request (not cached at boot) so the value reflects the current
+// environment — prod never sets it; the test suite toggles it per case.
+function allowAdminVoteBypass() {
+  return process.env.ALLOW_ADMIN_VOTE_BYPASS === "1";
+}
 
 // EIP-712 type for admin-signed option (issue) deletions. Lets admins
 // remove an issue from a vote without invalidating already-cast ballots:
@@ -493,7 +504,7 @@ import {
 } from "./db.mjs";
 
 // ---------- server ------------------------------------------------
-const app = Fastify({ logger: true });
+export const app = Fastify({ logger: { level: process.env.LOG_LEVEL || "info" } });
 await app.register(cors, { origin: true });
 
 app.get("/api/health", async () => ({ ok: true }));
@@ -1006,7 +1017,7 @@ app.post("/api/proposals/:id/vote", async (req, reply) => {
   // eligibility block) so the admin staging-bypass path still has a value;
   // defaults to 0n and the on-chain read overwrites it on the normal path.
   let badgeBalance = 0n;
-  if (!(ALLOW_ADMIN_VOTE_BYPASS && _voterIsAdmin)) {
+  if (!(allowAdminVoteBypass() && _voterIsAdmin)) {
     const tokenSpec = resolveEligibilitySpec(proposal);
     if (!tokenSpec) {
       return reply.code(403).send({
@@ -1162,5 +1173,10 @@ app.post("/api/proposals/:id/commit", async (req, reply) => {
 
 const PORT = Number(process.env.PORT ?? 7101);
 const HOST = process.env.HOST ?? "127.0.0.1";
-await app.listen({ port: PORT, host: HOST });
-app.log.info(`thedaolog ballot api on :${PORT}`);
+// Only bind a port when run directly (node server/api.mjs). When imported
+// (e.g. by the test suite) the app is exercised via app.inject() instead, so
+// importing must not start a listener or require an open port.
+if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
+  await app.listen({ port: PORT, host: HOST });
+  app.log.info(`thedaolog ballot api on :${PORT}`);
+}

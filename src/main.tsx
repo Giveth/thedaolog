@@ -63,7 +63,7 @@ const CONNECT_TIMEOUT_MS = 60_000;
  * "connecting"/"reconnecting" for >CONNECT_TIMEOUT_MS, we surface a banner
  * pointing at the likely cause (locked extension) plus a Retry button.
  */
-function WalletGate(): React.ReactElement {
+export function WalletGate(): React.ReactElement {
   const { address, isConnected, status } = useAccount();
   const { disconnect } = useDisconnect();
   const { openConnectModal } = useConnectModal();
@@ -306,7 +306,7 @@ function WalletGate(): React.ReactElement {
  * truth; pushState updates it without a full reload; popstate listens
  * for back/forward.
  */
-function useCurrentPath(): [string, (next: string) => void] {
+export function useCurrentPath(): [string, (next: string) => void] {
   const [path, setPath] = React.useState<string>(
     () => (typeof window === "undefined" ? "/" : window.location.pathname || "/"),
   );
@@ -330,7 +330,7 @@ function useCurrentPath(): [string, (next: string) => void] {
  * (z-index over RainbowKit's modal too) so the user sees it whether
  * they left the modal open or closed it.
  */
-function WalletLockedHint({
+export function WalletLockedHint({
   onRetry,
   onDismiss,
 }: {
@@ -415,7 +415,7 @@ const queryClient = new QueryClient();
 // encoder — unmounts the whole React tree and leaves a blank screen with no
 // way out. The boundary catches it, keeps the page alive, and offers a
 // reload instead of the white-screen-of-death.
-class AppErrorBoundary extends React.Component<
+export class AppErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { error: Error | null }
 > {
@@ -473,19 +473,26 @@ class AppErrorBoundary extends React.Component<
   }
 }
 
-ReactDOM.createRoot(document.getElementById("app")!).render(
-  <React.StrictMode>
-    <AppErrorBoundary>
-      <WagmiProvider config={wagmiConfig}>
-        <QueryClientProvider client={queryClient}>
-          <RainbowKitProvider theme={darkTheme()} appInfo={{ appName: "Murmuration" }}>
-            <WalletGate />
-          </RainbowKitProvider>
-        </QueryClientProvider>
-      </WagmiProvider>
-    </AppErrorBoundary>
-  </React.StrictMode>,
-);
+// Mount the app — but only in a real browser, not under the test runner
+// (which imports this module to unit-test WalletGate via app.inject-style
+// renders and must not auto-create a root). import.meta.env.VITEST is set by
+// Vitest and undefined in the prod build, so prod always mounts.
+const _rootEl = typeof document !== "undefined" ? document.getElementById("app") : null;
+if (_rootEl && !import.meta.env.VITEST) {
+  ReactDOM.createRoot(_rootEl).render(
+    <React.StrictMode>
+      <AppErrorBoundary>
+        <WagmiProvider config={wagmiConfig}>
+          <QueryClientProvider client={queryClient}>
+            <RainbowKitProvider theme={darkTheme()} appInfo={{ appName: "Murmuration" }}>
+              <WalletGate />
+            </RainbowKitProvider>
+          </QueryClientProvider>
+        </WagmiProvider>
+      </AppErrorBoundary>
+    </React.StrictMode>,
+  );
+}
 
 // Silence unused-import warning until we surface a manual ConnectButton
 // somewhere in the app (the in-flow F2Connect handles the pre-connect
