@@ -1352,8 +1352,8 @@ function _LiveHolders({ token }) {
       return out;
     })();
     return (
-      <div style={{ width: "100%", height: "100%", display: "grid", gridTemplateColumns: "1.1fr 1fr", position: "relative" }}>
-        <div className="dao-blue-surface" style={{ position: "relative", overflow: "hidden" }}>
+      <div style={{ width: "100%", minHeight: "100%", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 400px), 1fr))", position: "relative" }}>
+        <div className="dao-blue-surface" style={{ position: "relative", overflow: "hidden", minHeight: "min(58vh, 420px)" }}>
           {/* Hand-placed red Đ squares — TheDAO brand wallpaper */}
           {_daoSquares.map((sq, i) => (
             <div
@@ -1404,8 +1404,8 @@ function _LiveHolders({ token }) {
             </div>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 60, background: "var(--dao-blue-950)" }}>
-          <div style={{ width: 460, color: "white" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "clamp(28px, 7vw, 60px)", background: "var(--dao-blue-950)" }}>
+          <div style={{ width: "100%", maxWidth: 460, color: "white" }}>
             <div className="font-display" style={{ fontSize: 36, fontWeight: 700 }}>Welcome Starling</div>
 
             <div style={{ marginTop: 32 }}>
@@ -1443,7 +1443,7 @@ function _LiveHolders({ token }) {
     const closed = rounds.filter(r => !_isUpcomingRound(r) && _isPastRound(r));
     const open = rounds.filter(r => !_isUpcomingRound(r) && !_isPastRound(r) && r.status === "open");
     return (
-      <div style={{ padding: "40px 40px 80px", maxWidth: 1280, margin: "0 auto" }}>
+      <div className="f2-pad" style={{ padding: "40px 40px 80px", maxWidth: 1280, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 28 }}>
           <div>
             <div className="font-mono" style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text-muted)" }}>Active murmurations</div>
@@ -1459,7 +1459,7 @@ function _LiveHolders({ token }) {
 
         {/* ── ACTIVE (live now) ── */}
         {open.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))", gap: 18 }}>
             {open.map(r => <RoundCard key={r.id} r={r} onOpen={() => onOpen(r.id)} />)}
           </div>
         )}
@@ -1505,7 +1505,7 @@ function _LiveHolders({ token }) {
               <span className="font-display" style={{ fontSize: 28, fontWeight: 700, color: "var(--text-primary)" }}>Upcoming</span>
               <span className="font-mono" style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--dao-gold-300)", padding: "4px 11px", borderRadius: 999, background: "rgba(245,210,110,0.14)", border: "1px solid rgba(245,210,110,0.30)" }}>🕒 Scheduled</span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 18 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))", gap: 18 }}>
               {upcoming.map(r => <RoundCard key={r.id} r={r} onOpen={() => onOpen(r.id)} upcoming />)}
             </div>
           </>
@@ -1515,7 +1515,7 @@ function _LiveHolders({ token }) {
         {closed.length > 0 && (
           <>
             <div className="font-display" style={{ fontSize: 28, fontWeight: 700, color: "var(--text-primary)", marginTop: 56, marginBottom: 16 }}>Past votes</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 18 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))", gap: 18 }}>
               {closed.map(r => <RoundCard key={r.id} r={r} onOpen={() => onOpen(r.id)} muted />)}
             </div>
           </>
@@ -1718,7 +1718,7 @@ function _LiveHolders({ token }) {
     // curve so the bubble just echoes the value.
     const _displayCost = voting === "quadratic" ? clampedValue * clampedValue : clampedValue;
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 12, width: 260 }}>
+      <div className="f2-slider" style={{ display: "flex", alignItems: "center", gap: 12, width: 260 }}>
         <div
           ref={trackRef}
           onMouseDown={onDown}
@@ -1855,7 +1855,7 @@ function _LiveHolders({ token }) {
     return (
       <>
         <style>{"@keyframes f2skel { 0%{background-position:200% 0} 100%{background-position:-200% 0} }"}</style>
-        <div style={{ padding: "32px 40px", display: "grid", gridTemplateColumns: "320px 1fr", gap: 32, maxWidth: 1320, margin: "0 auto" }}>
+        <div className="f2-2col f2-pad" style={{ padding: "32px 40px", display: "grid", gridTemplateColumns: "320px 1fr", gap: 32, maxWidth: 1320, margin: "0 auto" }}>
           <div>
             {_bar("60%", 10)}
             {_bar("90%", 28, 10)}
@@ -2191,7 +2191,7 @@ function _LiveHolders({ token }) {
     }
 
     return (
-      <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 32, padding: "32px 40px", maxWidth: 1400, margin: "0 auto" }}>
+      <div className="f2-2col f2-pad" style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 32, padding: "32px 40px", maxWidth: 1400, margin: "0 auto" }}>
         {/* sidebar */}
         <div style={{ position: "sticky", top: 88, alignSelf: "start" }}>
           <div className="font-mono" style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>Your murmur</div>
@@ -2371,7 +2371,7 @@ function _LiveHolders({ token }) {
                 ? Math.floor(Math.sqrt(cost + remaining))
                 : v + remaining;
               return (
-                <div key={iss.id} style={{
+                <div key={iss.id} className="f2-dir-row" style={{
                   background: "var(--surface-card)", borderRadius: 14,
                   border: "1px solid var(--stroke-line-2)",
                   borderLeft: v > 0 ? "4px solid var(--dao-red)" : "1px solid var(--stroke-line-2)",
@@ -2617,12 +2617,12 @@ function _LiveHolders({ token }) {
       }
     };
     return (
-      <div style={{ padding: "32px 40px", maxWidth: 1100, margin: "0 auto" }}>
+      <div className="f2-pad" style={{ padding: "32px 40px", maxWidth: 1100, margin: "0 auto" }}>
         <BackButton onBack={onBack} style={{ marginBottom: 16 }} />
         <h1 className="font-display" style={{ fontSize: 44, fontWeight: 700, color: "var(--text-primary)", margin: "16px 0 28px", lineHeight: 1.1, letterSpacing: "-0.02em" }}>
           {issue.title}
         </h1>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 32 }}>
+        <div className="f2-2col" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 32 }}>
           <div className="font-body" style={{ fontSize: 16, lineHeight: 1.7, color: "var(--text-primary)" }}>
             <div style={{ whiteSpace: "pre-wrap" }}>{issue.body || <i style={{ color: "var(--text-faint)" }}>(no description)</i>}</div>
           </div>

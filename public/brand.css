@@ -332,3 +332,16 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+
+/* ── Mobile responsive ─────────────────────────────────────────────
+   The app is built with fixed multi-column inline-style grids. These
+   utility classes collapse them to a single column, shrink page
+   padding, and let sliders go full-width on narrow screens. Applied
+   via className alongside the existing inline styles (the media query
+   wins over inline because of !important). */
+@media (max-width: 760px) {
+  .f2-2col { grid-template-columns: 1fr !important; }
+  .f2-pad { padding-left: 16px !important; padding-right: 16px !important; }
+  .f2-dir-row { grid-template-columns: 1fr !important; row-gap: 14px !important; }
+  .f2-slider { width: 100% !important; }
+}
