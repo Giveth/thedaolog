@@ -1626,7 +1626,7 @@ function _LiveHolders({ token }) {
     );
   }
 
-  function AllocSlider({ value, onChange, max, scaleMax, disabled, voting }) {
+  function AllocSlider({ value, onChange, max, scaleMax, disabled, voting, onBlocked }) {
     // `max` = highest value user can currently set (affordability cap).
     // `scaleMax` = visual ceiling for the round (e.g. 10 for QV/100 budget,
     // 100 for token-weight). Bar fill = value/scaleMax, so two sliders with
@@ -1640,12 +1640,40 @@ function _LiveHolders({ token }) {
     const affordablePct = Math.min(100, (safeMax / safeScale) * 100);
     const fillPct = Math.min(100, (clampedValue / safeScale) * 100);
 
+    // Tracks whether the current drag is already past the affordability cap,
+    // so we fire the shake + onBlocked once per entry into the blocked zone
+    // rather than on every mousemove. Reset on mouseup (see effect below).
+    const _blockedRef = React.useRef(false);
+    const _shake = () => {
+      const el = trackRef.current;
+      if (el && el.animate) {
+        el.animate(
+          [
+            { transform: "translateX(0)" },
+            { transform: "translateX(-5px)" },
+            { transform: "translateX(5px)" },
+            { transform: "translateX(-3px)" },
+            { transform: "translateX(0)" },
+          ],
+          { duration: 340, easing: "ease-in-out" },
+        );
+      }
+    };
     const valueFromEvent = (e) => {
       const rect = trackRef.current.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
       const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-      const raw = pct * safeScale;
-      return Math.min(safeMax, Math.round(raw));
+      const requested = Math.round(pct * safeScale);
+      if (requested > safeMax) {
+        if (!_blockedRef.current) {
+          _blockedRef.current = true;
+          _shake();
+          if (onBlocked) onBlocked();
+        }
+      } else {
+        _blockedRef.current = false;
+      }
+      return Math.min(safeMax, requested);
     };
 
     const onDown = (e) => {
@@ -1657,7 +1685,7 @@ function _LiveHolders({ token }) {
     React.useEffect(() => {
       if (!dragging) return;
       const move = (e) => onChange(valueFromEvent(e));
-      const up = () => setDragging(false);
+      const up = () => { setDragging(false); _blockedRef.current = false; };
       window.addEventListener("mousemove", move);
       window.addEventListener("mouseup", up);
       window.addEventListener("touchmove", move);
@@ -1915,6 +1943,16 @@ function _LiveHolders({ token }) {
     const [_roundTally, _setRoundTally] = useState({});
     const [_roundVoters, _setRoundVoters] = useState(0);
     const [_deletedOptionIds, _setDeletedOptionIds] = useState([]);
+    // Transient "you're out of credits" strip shown under a direction when the
+    // user tries to drag it past what their remaining budget allows. Keyed by
+    // issue id; auto-clears after a couple seconds. No modal — see _flashBlocked.
+    const [_blockedId, _setBlockedId] = useState(null);
+    const _blockTimer = React.useRef(null);
+    const _flashBlocked = (id) => {
+      _setBlockedId(id);
+      if (_blockTimer.current) clearTimeout(_blockTimer.current);
+      _blockTimer.current = setTimeout(() => _setBlockedId(null), 2600);
+    };
     // Tick state: bumped after any mutation to the global ISSUES array so
     // dependent renders (issues.map → cards) re-evaluate. ISSUES is a
     // module-level mutable global; React can't observe mutations to it.
@@ -2280,6 +2318,7 @@ function _LiveHolders({ token }) {
             ) : <span style={{ color: "var(--dao-red)", fontWeight: 700 }}>connect an ETHSecurity Badge wallet to add one to the murmuration</span>}.
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <style>{`@keyframes f2blockstrip { from { opacity: 0; transform: translateY(-3px) } to { opacity: 1; transform: none } }`}</style>
             {issues.map(iss => {
               const v = allocations[iss.id] || 0;
               const cost = round.voting === "quadratic" ? v * v : v;
@@ -2323,6 +2362,7 @@ function _LiveHolders({ token }) {
                       scaleMax={round.voting === "quadratic" ? Math.floor(Math.sqrt(round.budget)) : round.budget}
                       disabled={!_canVoteHere}
                       voting={round.voting}
+                      onBlocked={() => _flashBlocked(iss.id)}
                     />
                     {round.voting === "quadratic" ? (
                       <div className="font-mono" style={{ fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", textAlign: "right", lineHeight: 1.5 }}>
@@ -2452,6 +2492,19 @@ function _LiveHolders({ token }) {
                       </div>
                     );
                   })()}
+                  {_blockedId === iss.id && (
+                    <div style={{
+                      gridColumn: "1 / -1",
+                      marginTop: 12,
+                      display: "flex", alignItems: "center", gap: 7,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: 12.5, fontWeight: 600, letterSpacing: "0.01em",
+                      color: "var(--dao-red)",
+                      animation: "f2blockstrip .18s ease-out",
+                    }}>
+                      No credits left. Lower another direction first.
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -2499,6 +2552,29 @@ function _LiveHolders({ token }) {
     // can't vote on this round (e.g. incognito on a public round) can't drag
     // the slider here either.
     const _canVoteHere = canVoteInRound(round, { role, isBadgeholder, isPublicBadgeholder, isIncognito, tokens });
+    // Same "out of credits" feedback as the directions list — shown when the
+    // user drags this direction's slider past their remaining budget.
+    const [_blocked, _setBlocked] = useState(false);
+    const _blockTimer = React.useRef(null);
+    const _sliderRef = React.useRef(null);
+    const _flashBlocked = () => {
+      _setBlocked(true);
+      if (_blockTimer.current) clearTimeout(_blockTimer.current);
+      _blockTimer.current = setTimeout(() => _setBlocked(false), 2600);
+      const el = _sliderRef.current;
+      if (el && el.animate) {
+        el.animate(
+          [
+            { transform: "translateX(0)" },
+            { transform: "translateX(-5px)" },
+            { transform: "translateX(5px)" },
+            { transform: "translateX(-3px)" },
+            { transform: "translateX(0)" },
+          ],
+          { duration: 340, easing: "ease-in-out" },
+        );
+      }
+    };
     return (
       <div style={{ padding: "32px 40px", maxWidth: 1100, margin: "0 auto" }}>
         <BackButton onBack={onBack} style={{ marginBottom: 16 }} />
@@ -2532,6 +2608,13 @@ function _LiveHolders({ token }) {
                 const maxForThis = round.voting === "quadratic"
                   ? Math.floor(Math.sqrt(Math.max(budgetForThis, 0)))
                   : Math.max(budgetForThis, 0);
+                // Slider spans the FULL round scale, not just what's affordable —
+                // otherwise when the budget is spent the range collapses to 0..1
+                // and is effectively undraggable, so the over-budget feedback
+                // never fires. setSafe clamps the result back + flashes the strip.
+                const sliderScale = round.voting === "quadratic"
+                  ? Math.max(Math.floor(Math.sqrt(round.budget)), 1)
+                  : Math.max(round.budget, 1);
                 const cost = round.voting === "quadratic" ? v * v : v;
                 const nextCost = round.voting === "quadratic" ? (2 * v + 1) : 1;
                 const remaining = budgetForThis - cost;
@@ -2539,21 +2622,34 @@ function _LiveHolders({ token }) {
                   if (!_canVoteHere) return;
                   let next = raw;
                   const nCost = round.voting === "quadratic" ? next * next : next;
-                  if (nCost > budgetForThis) next = maxForThis;
+                  if (nCost > budgetForThis) { next = maxForThis; _flashBlocked(); }
                   if (next < 0) next = 0;
                   setAllocations({ ...allocations, [issue.id]: next });
                 };
                 return (
                   <>
+                    <style>{`@keyframes f2blockstrip { from { opacity: 0; transform: translateY(-3px) } to { opacity: 1; transform: none } }`}</style>
                     <div className="font-mono" style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--on-blue-soft)" }}>Your allocation</div>
                     <div className="font-display" style={{ fontSize: 56, fontWeight: 700, lineHeight: 1, marginTop: 8 }}>{v}<span style={{ fontSize: 20, color: "var(--on-blue-soft)" }}> {round.voting === "quadratic" ? (v === 1 ? "pt" : "pts") : (v === 1 ? "vote" : "votes")}</span></div>
                     <input
-                      type="range" min="0" max={Math.max(maxForThis, 1)} value={Math.min(v, Math.max(maxForThis, 0))}
+                      ref={_sliderRef}
+                      type="range" min="0" max={sliderScale} value={Math.min(v, sliderScale)}
                       disabled={!_canVoteHere}
                       onChange={e => setSafe(Number(e.target.value))}
                       style={{ width: "100%", marginTop: 14, accentColor: "var(--dao-red)" }}
                     />
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--on-blue-soft)" }} className="font-mono"><span>0</span><span>{maxForThis}</span></div>
+                    {_blocked && (
+                      <div style={{
+                        marginTop: 12,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: 12, fontWeight: 600, letterSpacing: "0.01em",
+                        color: "rgb(255,140,120)",
+                        animation: "f2blockstrip .18s ease-out",
+                      }}>
+                        No credits left. Lower another direction first.
+                      </div>
+                    )}
 
                     {/* Running budget for the round */}
                     <div style={{ marginTop: 18, padding: "12px 14px", background: "rgba(255,255,255,0.06)", borderRadius: 10 }}>
