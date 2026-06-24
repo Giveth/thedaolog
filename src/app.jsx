@@ -2057,6 +2057,19 @@ function _LiveHolders({ token }) {
         setAllocations({});
       }
     }, [address]);
+    // Same scratchpad reset when the ROUND changes. Option ids are per-round
+    // (1,2,3…) and COLLIDE across rounds, so without this the previous round's
+    // allocations bleed onto this one — e.g. world-cup votes (20 pts) showing
+    // against the satoshi round's options + budget as "20 / 5 used" (Griff,
+    // 2026-06-24). _refreshState (keyed on round.id) then re-hydrates the
+    // sliders from THIS round's own signed ballot, if any.
+    const _prevRoundRef = useRef(round?.id);
+    useEffect(() => {
+      if (_prevRoundRef.current !== round?.id) {
+        _prevRoundRef.current = round?.id;
+        setAllocations({});
+      }
+    }, [round?.id]);
     const _votedAndLocked = !!_userBallot && !_editingVote;
     const _cancelEdit = () => {
       _setEditingVote(false);
@@ -3117,7 +3130,12 @@ function _LiveHolders({ token }) {
                   <span className="font-mono" style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--dao-green)", fontWeight: 700 }}>✓ Voted</span>
                 </div>
                 {allocs.map((a, i) => {
-                  const iss = ISSUES.find((x) => x.id === Number(a.issueId));
+                  // Resolve the option name from THIS round's own label map —
+                  // option ids collide across rounds, so the global ISSUES
+                  // cache (last round loaded wins) would mislabel. Fall back to
+                  // ISSUES only when the round has no map (e.g. deleted option).
+                  const _label = r.optionLabels && r.optionLabels[Number(a.issueId)];
+                  const iss = _label ? { title: _label } : ISSUES.find((x) => x.id === Number(a.issueId));
                   const pct = total > 0 ? (Number(a.points) / total) * 100 : 0;
                   const points = Number(a.points);
                   const cost = r.voting === "quadratic" ? points * points : points;
@@ -3884,6 +3902,12 @@ function _LiveHolders({ token }) {
               status: closesMs > Date.now() ? "open" : "closed",
               voters: 0,
               issueIds: (p.options || []).map((o) => o.id),
+              // Per-round id→label map. Views that render a STORED ballot
+              // (My murmur / F2Ballot) must resolve names from THIS round, not
+              // the global ISSUES cache: option ids collide across rounds and
+              // ISSUES holds whichever round loaded last, which mislabels
+              // other rounds' ballots (Griff, 2026-06-24).
+              optionLabels: Object.fromEntries((p.options || []).map((o) => [o.id, o.label])),
               tokenId: p.tokenId || _defaultTokId,
               // Carry the proposal's stored eligibility token address so
               // per-round public/private detection works in ANY browser —
