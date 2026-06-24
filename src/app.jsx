@@ -141,6 +141,21 @@ const BADGEHOLDERS = [
 // Real theDAO logomark — red rounded square with white "Đ" (D-with-bar).
 // Geometry mirrors /Export/Logomark from the Figma: 30% padding, the bar
 // runs left-of-D and is overlapped by the D's vertical stem.
+// Convert a wallet / viem error into a SAFE, user-facing message. A user
+// rejecting a signature is a normal cancel, not a failure. Real errors get a
+// generic line; the technical detail is logged to the console only. We never
+// surface library internals to the UI — viem appends "Version: viem@x.y.z" to
+// its error messages, which would leak our exact dependency version (a
+// supply-chain / known-CVE recon aid). See README "Security model".
+function safeWalletErr(e, verb = "complete that") {
+  try { console.error("[wallet]", verb, e); } catch { /* noop */ }
+  const raw = String((e && (e.shortMessage || e.message)) || e || "");
+  const isReject = (e && e.name === "UserRejectedRequestError")
+    || /user rejected|user denied|rejected the request|request rejected|\b4001\b/i.test(raw);
+  if (isReject) return "Signing cancelled.";
+  return `Couldn't ${verb}. Please try again.`;
+}
+
 function DaoLogo({ size = 32, color = "rgb(255,60,56)", shadow = true }) {
   return (
     <span style={{
@@ -2793,7 +2808,7 @@ function _LiveHolders({ token }) {
         const _msg = (e && e.message) || String(e);
         const _text = /duplicate_option/.test(_msg)
           ? `A direction called "${_title}" already exists.`
-          : "Submit failed: " + _msg;
+          : safeWalletErr(e, "submit the direction");
         if (setSaveToast) setSaveToast({ kind: "err", text: _text });
       } finally {
         _setSubmitting(false);
@@ -3986,7 +4001,7 @@ function _LiveHolders({ token }) {
                 _setSaveToast({ kind: "ok", text: `Signed — your vote on "${r.title}" was recorded.` });
               } catch (e) {
                 console.error("[votingApi.castVote] failed:", e);
-                _setSaveToast({ kind: "err", text: "Sign failed: " + (e.message || String(e)) });
+                _setSaveToast({ kind: "err", text: safeWalletErr(e, "sign the ballot") });
               }
             }}
             onDeleteIssue={async (issueId) => {
@@ -4010,7 +4025,7 @@ function _LiveHolders({ token }) {
                 _setSaveToast({ kind: "ok", text: "Issue deleted. Voters get those points back." });
               } catch (e) {
                 console.error("[votingApi.deleteOption] failed:", e);
-                _setSaveToast({ kind: "err", text: "Issue delete failed: " + (e.message || String(e)) });
+                _setSaveToast({ kind: "err", text: safeWalletErr(e, "delete the direction") });
               }
             }}
           />
@@ -4079,7 +4094,7 @@ function _LiveHolders({ token }) {
                 _setSaveToast({ kind: "ok", text: "Vote deleted." });
               } catch (e) {
                 console.error("[votingApi.deleteProposal] failed:", e);
-                _setSaveToast({ kind: "err", text: "Delete failed: " + (e.message || String(e)) + ". Vote unchanged." });
+                _setSaveToast({ kind: "err", text: safeWalletErr(e, "delete that") + " Vote unchanged." });
               }
             }}
           />
@@ -4194,7 +4209,7 @@ function _LiveHolders({ token }) {
                 _setSaveToast({ kind: "ok", text: `Vote "${saved.title}" signed and published. Survives reloads.` });
               } catch (e) {
                 console.error("[votingApi.createProposal] failed:", e);
-                _setSaveToast({ kind: "err", text: "Sign / save failed: " + (e.message || String(e)) + ". Vote not created — try again." });
+                _setSaveToast({ kind: "err", text: safeWalletErr(e, "create the round") + " Not created." });
                 // Stay on the editor so the admin can retry without
                 // re-typing everything.
               }
