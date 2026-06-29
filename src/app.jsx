@@ -861,6 +861,7 @@ function _LiveHolders({ token }) {
       ["ballot",  "My murmur",canVote(role, isBadgeholder)],
       ["admin",   "Admin",    canAdmin(role)],
     ].filter(x => x[2] !== false);
+    const [_navOpen, _setNavOpen] = useState(false);
     // Đ-flock wallpaper — centroid-based clustering for a real
     // murmuration feel (dense cores, thinning at the edges). Each
     // centroid spawns squares around itself with distance-based size +
@@ -1014,7 +1015,24 @@ function _LiveHolders({ token }) {
             ) : (
               <button className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px" }} onClick={onConnectClick}>Connect Wallet</button>
             )}
+            {/* Mobile-only nav menu. Desktop shows the pill tabs + Disconnect,
+                which are hidden on mobile (f2-hide-sm); this compact ☰ opens a
+                dropdown so mobile can reach My murmur / Admin / Disconnect
+                without cluttering the header. Desktop never renders it
+                (button is f2-only-sm display:none, and _navOpen can only be
+                toggled from that mobile-only button). */}
+            {connected && (
+              <button aria-label="Menu" className="f2-only-sm" onClick={() => _setNavOpen(o => !o)} style={{ display: "none", background: "transparent", border: "none", color: "var(--text-primary)", cursor: "pointer", fontSize: 22, lineHeight: 1, padding: "4px 2px" }}>☰</button>
+            )}
           </div>
+          {_navOpen && (
+            <div className="f2-only-sm" style={{ display: "none", position: "absolute", top: "100%", right: 12, marginTop: 6, minWidth: 190, background: "var(--surface-elevated)", border: "1px solid var(--stroke-line-2)", borderRadius: 12, boxShadow: "0 10px 28px rgba(0,0,0,0.35)", overflow: "hidden", zIndex: 30 }}>
+              {items.map(([k, l]) => (
+                <button key={k} onClick={() => { onNav(k); _setNavOpen(false); }} className="font-display" style={{ display: "block", width: "100%", textAlign: "left", background: active === k ? "var(--dao-blue-900)" : "transparent", color: active === k ? "white" : "var(--text-primary)", border: "none", cursor: "pointer", padding: "13px 18px", fontWeight: 600, fontSize: 15 }}>{l}</button>
+              ))}
+              <button onClick={() => { onDisconnect(); _setNavOpen(false); }} className="font-display" style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", color: "var(--text-muted)", borderTop: "1px solid var(--stroke-line)", borderLeft: "none", borderRight: "none", borderBottom: "none", cursor: "pointer", padding: "13px 18px", fontWeight: 600, fontSize: 15 }}>Disconnect</button>
+            </div>
+          )}
         </div>
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto", position: "relative", zIndex: 1 }}>
           {children}
@@ -1463,7 +1481,7 @@ function _LiveHolders({ token }) {
             </div>
           </div>
           {canAdmin(role) && (
-            <button className="btn btn-primary btn-lg" onClick={onCreate}>+ New vote</button>
+            <button className="btn btn-primary btn-lg f2-hide-sm" onClick={onCreate}>+ New vote</button>
           )}
         </div>
 
